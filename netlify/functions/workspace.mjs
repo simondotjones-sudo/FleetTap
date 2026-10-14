@@ -1,3 +1,4 @@
+import {validateAttachments} from '../../server/photos.mjs';
 import {db,actor,body,json,garageFor,endpoint,fail,safeUser} from '../../server/runtime.mjs';
 import {canManage} from '../../server/security.mjs';
 import {addRecord,submitAction} from '../../src/model.js';
@@ -16,11 +17,12 @@ export default endpoint(async(req)=>{
  const [r]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${b.garage}`;
  if(!r||r.version!==b.version)fail('Another person saved changes. Refresh the garage and retry your entry.',409);
  const state=r.data;let result=null;const v=b.values||{};
+ const photos=v.photos===undefined?[]:await validateAttachments(v.photos,b.garage,u);
  const worker=u.name+' ('+u.email+')';
  try{
  switch(b.action){
   case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);result=saveVehicle(state,b.garage,v);break;
-  case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id});break;
+  case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos:b.kind==='faults'?photos:[]});break;
   case 'start':result=startInspection(state,v.vehicle,b.garage,worker);break;
   case 'answer':result=saveAnswer(state,b.id,b.garage,b.item,{result:v.result,notes:String(v.notes||'').slice(0,4000),worker,readings:Array.isArray(v.readings)?v.readings.map(x=>String(x).slice(0,300)):[]});break;
   case 'submit':submitInspection(state,b.id,b.garage,String(v.notes||'').slice(0,4000));break;
@@ -28,6 +30,7 @@ export default endpoint(async(req)=>{
   default:fail('Unknown workspace request.');
  }
  }catch(e){if(e.status)throw e;fail(e.message);}
+ if(b.action==='answer'&&result?.fault&&photos.length){const f=state.faults.find(f=>f.id===result.fault&&f.garage===b.garage);f.photos=[...new Set([...(f.photos||[]),...photos])];if(f.photos.length>12)fail('This fault already has enough photos.');}
  // Compare-and-swap prevents stale clients from overwriting another user's work.
  // Recheck the authenticated account version at commit time to reject revoked sessions.
  const [updated]=await sql`WITH changed AS (UPDATE garage_records SET data=${JSON.stringify(state)}::jsonb,version=version+1,updated_at=now() WHERE garage_id=${b.garage} AND version=${b.version} AND EXISTS(SELECT 1 FROM users WHERE id=${u.id} AND active AND credential_version=${u.credential_version}) RETURNING version), audit AS (INSERT INTO audit_events(actor_id,action,target,garage_id) SELECT ${u.id},${'workspace_'+b.action},${b.id||result?.id||null},${b.garage} FROM changed) SELECT version FROM changed`;
