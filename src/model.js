@@ -24,3 +24,5 @@ export function addRecord(state,kind,values){
  return record;
 }
 export function submitAction(state,id,evidence){const action=state.actions.find(a=>a.id===id);if(!action)throw Error('Action not found');if(!evidence.trim())throw Error('Describe the work completed.');action.evidence=evidence.trim();action.status='Awaiting review';}
+
+export function savedRecordRequest(state,kind,garage,actor,requestId){if(!requestId||!['reports','faults'].includes(kind))return null;return state[kind].find(r=>r.garage===garage&&r.createdBy===actor&&r.requestId===requestId)||null;}

@@ -1,7 +1,7 @@
 import {validateAttachments} from '../../server/photos.mjs';
 import {db,actor,body,json,garageFor,endpoint,fail,safeUser} from '../../server/runtime.mjs';
 import {canManage} from '../../server/security.mjs';
-import {addRecord,submitAction} from '../../src/model.js';
+import {addRecord,submitAction,savedRecordRequest} from '../../src/model.js';
 import {startInspection,saveAnswer,submitInspection,saveVehicle} from '../../src/inspections.js';
 export default endpoint(async(req)=>{
  const u=await actor(req),sql=db();
@@ -15,6 +15,7 @@ export default endpoint(async(req)=>{
  const b=await body(req);await garageFor(u,b.garage);
  if(!Number.isInteger(b.version)||b.version<0)fail('Reload the garage before saving.',409);
  const [r]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${b.garage}`;
+ if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:r.data,version:r.version,result:prior});}
  if(!r||r.version!==b.version)fail('Another person saved changes. Refresh the garage and retry your entry.',409);
  const state=r.data;let result=null;const v=b.values||{};
  const photos=v.photos===undefined?[]:await validateAttachments(v.photos,b.garage,u);
@@ -22,7 +23,7 @@ export default endpoint(async(req)=>{
  try{
  switch(b.action){
   case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);result=saveVehicle(state,b.garage,v);break;
-  case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos:b.kind==='faults'?photos:[]});break;
+  case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos,requestId:v.requestId||null});break;
   case 'start':result=startInspection(state,v.vehicle,b.garage,worker);break;
   case 'answer':result=saveAnswer(state,b.id,b.garage,b.item,{result:v.result,notes:String(v.notes||'').slice(0,4000),worker,readings:Array.isArray(v.readings)?v.readings.map(x=>String(x).slice(0,300)):[]});break;
   case 'submit':submitInspection(state,b.id,b.garage,String(v.notes||'').slice(0,4000));break;
