@@ -1,0 +1,25 @@
+/* Shared install and offline screen styles; retain FleetTap's black/yellow mark. */
+.pwa-installed [data-pwa-install]{display:none!important}
+.pwa-install-heading{display:flex;align-items:center;gap:12px}
+.pwa-install-heading img{border-radius:12px}
+.install-prompt{max-height:calc(100dvh - 150px);overflow:auto}
+.install-prompt button{min-height:44px;color:#191919}
+.install-prompt .pwa-install-status:empty{display:none}
+.login [data-pwa-install]{margin-top:22px;width:100%}
+#connection-status{margin:0;padding:12px 24px;background:#fff3d9;color:#775311;text-align:center;font-size:15px;line-height:1.4}
+#connection-status[hidden]{display:none}
+body{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+body>header{height:calc(80px + env(safe-area-inset-top,0px));padding-top:env(safe-area-inset-top,0px)}
+.navigation-shade,.navigation-drawer{top:calc(80px + env(safe-area-inset-top,0px))}
+@font-face{font-family:Gellix;src:url('/assets/fonts/Gellix-Regular.woff2');font-display:swap}
+@font-face{font-family:Gellix;src:url('/assets/fonts/Gellix-Bold.woff2');font-weight:700;font-display:swap}
+.offline-page{margin:0;min-height:100dvh;display:grid;place-items:center;padding:calc(28px + env(safe-area-inset-top,0px)) 24px calc(28px + env(safe-area-inset-bottom,0px));box-sizing:border-box;background:#f5f5f3;color:#191919;font:17px/1.5 Gellix,system-ui,sans-serif}
+.offline-card{width:100%;max-width:440px;box-sizing:border-box;padding:32px;background:white;border:1px solid #e3e3df;border-radius:24px;text-align:center}
+.offline-card img{border-radius:22px}
+.offline-card h1{font-size:30px;line-height:1.15;letter-spacing:-.7px;margin:24px 0 14px}
+.offline-card p{margin:0 0 20px}
+.offline-card .offline-note{font-size:15px;color:#626262}
+.offline-card button{width:100%;min-height:50px;padding:12px 20px;border:0;border-radius:12px;background:#ffe500;color:#191919;font:700 17px Gellix,system-ui,sans-serif;cursor:pointer}
+.offline-card button:focus-visible{outline:3px solid #2c8ddd;outline-offset:3px}
+.offline-card #offline-status{font-size:14px;color:#626262;margin:18px 0 0}
+@media print{#pwa-root,#connection-status{display:none}}
