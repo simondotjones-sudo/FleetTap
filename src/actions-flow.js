@@ -1,0 +1,52 @@
+import {esc} from './api.js';
+import {dictationButton,dictationActive,stopDictation,toggleDictation} from './dictation.js';
+
+const icons={work:'M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 4-4-4z',handover:'M4 7h15l-4-4M20 17H5l4 4',check:'M4 12l5 5L20 5',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7v5l3 2',bus:'M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2'};
+const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[k]||icons.work}"/></svg>`;
+const button=(attr,label)=>`<button type="button" class="tap-small" ${attr}>${esc(label)}</button>`;
+const tile=(attr,label,k,sub='')=>`<button type="button" class="tap-tile" ${attr}>${icon(k)}<strong>${esc(label)}</strong>${sub?`<small>${esc(sub)}</small>`:''}</button>`;
+const filters=[['Open','To do'],['Awaiting review','For review'],['Closed','Closed']];
+const drafts=new Map(),lists=new Map();let host,busy=false;
+export const actionsBusy=()=>busy;
+export const isActionsRoute=page=>page==='actions'||page.startsWith('actions/');
+export function scopedAction(c){let id;try{id=decodeURIComponent(c.page.slice(8));}catch{return null;}return c.state.actions.find(a=>a.id===id&&a.garage===c.garage)||null;}
+const draftFor=(c,a)=>{const key=c.garage+':'+a.id;if(!drafts.has(key))drafts.set(key,{step:'detail',kind:'',text:'',dirty:false,error:'',conflict:false,saved:false});return drafts.get(key);};
+const listFor=c=>{if(!lists.has(c.garage))lists.set(c.garage,{status:'Open',query:'',page:0});return lists.get(c.garage);};
+export function actionEvidence(d){const text=d.text.trim();if(!text)throw Error('Say or type a short update.');if(!['work','handover'].includes(d.kind))throw Error('Choose work completed or shift handover.');return (d.kind==='work'?'Work completed:\n':'Shift handover:\n')+text.slice(0,3900);}
+const status=a=>`<span class="pill ${a.status==='Open'?'attention':a.status==='Closed'?'action-closed':'status-neutral'}">${esc(a.status==='Open'?'To do':a.status)}</span>`;
+function frame(title,content,footer,kicker='Actions'){return `<section class="tap-screen actions-screen"><div class="tap-heading"><p>${esc(kicker)}</p><h1>${esc(title)}</h1></div><div class="tap-content">${content}</div><footer class="tap-footer">${footer}</footer></section>`;}
+function listView(c){const l=listFor(c),all=c.state.actions.filter(a=>a.garage===c.garage),matching=all.filter(a=>a.status===l.status&&[a.title,a.vehicle,a.owner,a.id].join(' ').toLowerCase().includes(l.query.toLowerCase())),pages=Math.max(1,Math.ceil(matching.length/6));l.page=Math.max(0,Math.min(l.page,pages-1));
+ for(const a of all){const d=drafts.get(c.garage+':'+a.id);if(d?.saved){d.saved=false;d.step='detail';}}
+ const tabs=`<div class="report-switch action-filters" role="group" aria-label="Action status">${filters.map(([id,label])=>`<button type="button" data-action-filter="${id}" aria-pressed="${l.status===id}">${label}</button>`).join('')}</div>`;
+ const search=all.length?`<label class="sr-only" for="action-search">Find an action or bus</label><input id="action-search" class="tap-search" type="search" placeholder="Find an action or bus" value="${esc(l.query)}">`:'';
+ const grid=matching.length?`<div class="tap-grid action-tiles">${matching.slice(l.page*6,l.page*6+6).map(a=>`<button type="button" class="tap-tile action-tile" data-go="actions/${encodeURIComponent(a.id)}">${icon(a.status==='Closed'?'check':a.status==='Awaiting review'?'clock':'work')}<small class="action-bus">${esc(a.vehicle||'Garage')}</small><strong>${esc(a.title)}</strong></button>`).join('')}</div>`:`<div class="action-empty">${icon(l.status==='Closed'?'check':'work')}<h2>${l.query?'No matching actions':l.status==='Open'?'Nothing to do':l.status==='Closed'?'No closed actions':'Nothing awaiting review'}</h2><p class="tap-caption">${l.query?'Try a different bus number or description.':l.status==='Open'?'New actions will appear here when they need attention.':'Choose another status to view this garage’s actions.'}</p></div>`;
+ const paging=pages>1?button(`data-action-page="-1" ${l.page===0?'disabled':''}`,'Previous')+`<span>${l.page+1} / ${pages}</span>`+button(`data-action-page="1" ${l.page===pages-1?'disabled':''}`,'Next'):'';
+ return frame('Choose an action',tabs+search+grid,button('data-go="home"','← Home')+paging);
+}
+function summary(c,a){const source=[...c.state.reports,...c.state.faults].find(r=>r.id===a.source&&r.garage===c.garage);return `<article class="action-summary"><div class="row">${status(a)}<span>${esc(a.vehicle||'Garage')}</span></div><h2>${esc(a.title)}</h2>${source?.description?`<p class="record-note">${esc(source.description)}</p>`:''}<details><summary>Action details</summary><p>Assigned to: ${esc(a.owner||'Unassigned')}</p><p>Reference: ${esc(a.id)}${a.source?' · '+esc(a.source):''}</p></details></article>`;}
+export function actionsView(c){if(c.page==='actions')return listView(c);const a=scopedAction(c);if(!a)return frame('Action unavailable','<p class="tap-caption">Choose an action from your current garage.</p>',button('data-go="actions"','← Actions'));const d=draftFor(c,a),back=button('data-action-back','← Back');let title='',content='',footer='';
+ if(d.saved){title='Update sent';content=`<div class="report-done">${icon('check')}<p>Your update is saved and awaiting review.</p></div><p class="tap-caption">Vehicle status is unchanged.</p><div class="tap-grid jobs">${tile('data-go="actions"','Back to actions','work')}${tile('data-go="home"','Home','check')}</div>`;footer=button('data-go="actions"','← Actions');}
+ else if(a.status!=='Open'){title=a.status==='Closed'?'Closed action':'Awaiting review';content=summary(c,a)+(a.evidence?`<article class="action-summary"><h2>Recorded update</h2><p class="record-note">${esc(a.evidence)}</p></article>`:'')+(d.dirty?`<article class="action-summary"><h2>Your unsent draft</h2><p class="tap-caption">The action has changed. Your words are kept here for reference.</p><p class="record-note">${esc(d.text)}</p></article>`:'');footer=button('data-go="actions"','← Actions');}
+ else if(d.step==='detail'){title='What would you like to record?';content=summary(c,a)+`<div class="tap-grid jobs">${tile('data-action-kind="work"','Work completed','work','Record what you did')}${tile('data-action-kind="handover"','Shift handover','handover','Explain what needs to happen next')}</div>`;footer=button('data-go="actions"','← Actions');}
+ else if(d.step==='note'){title=d.kind==='work'?'What did you do?':'What needs handing over?';content=`<p class="tap-caption action-context">${esc(a.title)}</p><div class="report-text-entry">${dictationButton()}<label class="sr-only" for="action-note">${title}</label><textarea id="action-note" maxlength="3900" placeholder="${d.kind==='work'?'Describe the work completed and any checks made.':'Describe what is outstanding and what the next shift needs to know.'}">${esc(d.text)}</textarea></div>`;footer=back+'<button type="button" class="tap-primary" data-action-next>Continue →</button>';}
+ else{title='Ready for review?';content=`<article class="action-summary"><p class="tap-caption">${esc(a.vehicle||'Garage')} · ${esc(d.kind==='work'?'Work completed':'Shift handover')}</p><h2>${esc(a.title)}</h2><p class="record-note action-note-review">${esc(d.text)}</p></article><p class="tap-caption">This sends the update for review. It does not close the action or release the bus.</p>`;footer=button('data-action-back','← Edit update')+`<button type="button" class="tap-primary" data-action-save ${busy?'disabled aria-busy="true"':''}>${busy?'Sending…':'Send for review'}</button>`;}
+ if(d.error)content=`<p class="tap-error" role="alert">${esc(d.error)}</p>${d.conflict?button('data-action-refresh','Get latest records'):''}`+content;
+ return frame(title,content,footer,'Actions · '+(a.vehicle||'Garage'));
+}
+export function setupActions(h){host=h;
+ document.addEventListener('click',async e=>{const el=e.target.closest('button'),c=host.context();if(!el||!isActionsRoute(c.page)||busy)return;try{
+  const l=listFor(c);
+  if(el.hasAttribute('data-action-filter')){if(!filters.some(([id])=>id===el.dataset.actionFilter))return;l.status=el.dataset.actionFilter;l.page=0;host.render();return;}
+  if(el.hasAttribute('data-action-page')){l.page+=Number(el.dataset.actionPage);host.render();return;}
+  const a=scopedAction(c);if(!a)return;const d=draftFor(c,a);
+  if(el.hasAttribute('data-action-back')){stopDictation();d.step=d.step==='review'?'note':'detail';d.error='';host.render();return;}
+  if(el.hasAttribute('data-action-refresh')){await host.reload();const latest=scopedAction(host.context());d.error='';d.conflict=false;if(latest?.status==='Awaiting review'&&d.kind&&d.text.trim()&&latest.evidence===actionEvidence(d)){d.saved=true;d.dirty=false;}host.render();return;}
+  if(a.status!=='Open')return;
+  if(el.hasAttribute('data-action-kind')){if(!['work','handover'].includes(el.dataset.actionKind))return;d.kind=el.dataset.actionKind;d.step='note';d.error='';host.render();}
+  if(el.hasAttribute('data-report-mic'))toggleDictation(document.querySelector('#action-note'),value=>{d.text=value;d.dirty=true;});
+  if(el.hasAttribute('data-action-next')){if(dictationActive())throw Error('Tap Stop talking, then review your words.');actionEvidence(d);d.step='review';host.render();}
+  if(el.hasAttribute('data-action-save')){if(dictationActive())throw Error('Tap Stop talking, then review your words.');const evidence=actionEvidence(d);busy=true;d.error='';host.render();try{await host.mutation('action',{evidence},{id:a.id});d.saved=true;d.dirty=false;host.notify('Update sent for review ✓');}catch(error){d.error=error.message;d.conflict=error.status===409;}finally{busy=false;host.render();}}
+ }catch(error){host.notify(error.message);}});
+ document.addEventListener('input',e=>{const c=host.context();if(!isActionsRoute(c.page)||busy)return;if(e.target.id==='action-search'){const l=listFor(c),pos=e.target.selectionStart;l.query=e.target.value;l.page=0;host.render();const input=document.querySelector('#action-search');input.focus();try{input.setSelectionRange(pos,pos);}catch{}return;}if(e.target.id==='action-note'){const a=scopedAction(c);if(a){const d=draftFor(c,a);d.text=e.target.value;d.dirty=true;}}});
+ window.addEventListener('beforeunload',e=>{if(busy||[...drafts.values()].some(d=>d.dirty)){e.preventDefault();e.returnValue='';}});
+}
