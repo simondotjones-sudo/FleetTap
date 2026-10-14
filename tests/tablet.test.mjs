@@ -29,3 +29,9 @@ test('reference codes follow instruction button and OK is last',()=>{
  assert.ok(html.indexOf('data-result="OK"')>html.indexOf('data-result="Defect"'));
  assert.ok(taskCopy({text:'Adjust valve (inlet 0.40 mm) [S.I. - 294].'}).text.includes('(inlet 0.40 mm)'));
 });
+test('question hides instruction citations while retaining measurements and follow-on tasks',()=>{
+ const ride=available.find(t=>t.id==='6-5'),steering=available.find(t=>t.id==='4-8'),extinguisher=available.find(t=>t.id==='16-1');
+ assert.ok(!taskCopy(ride).text.includes('issued'));assert.ok(taskCopy(ride).text.includes('233 - 241 mm'));assert.ok(ride.text.includes('S.I. 335'));
+ assert.ok(taskCopy(steering).text.includes('Spray slit at bottom'));assert.ok(!taskCopy(steering).text.includes('Standard Instruction'));
+ assert.ok(taskCopy(extinguisher).text.includes('5 years or more, replace'));assert.ok(taskCopy(extinguisher).text.includes('spring balance'));
+});

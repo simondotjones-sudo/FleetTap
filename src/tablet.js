@@ -4,7 +4,16 @@ import {readings,revision,outOfRange,sections} from './inspections.js';
 import {esc} from './api.js';
 export const available=pm3.filter(t=>!t.blocked);
 export const firstPending=i=>{const n=available.findIndex(t=>!i.answers[t.id]);return n<0?available.length:n;};
-export function taskCopy(t){const refs=[];const text=t.text.replace(/\(SAP\s+Code\s+[^)]+\)|\[S\.I\.[^\]]*\]/gi,m=>{refs.push(m);return '';}).replace(/\s+([.,;])/g,'$1').replace(/\s{2,}/g,' ').trim();return {text,refs};}
+export function taskCopy(t){
+ const refs=[];
+ const text=t.text
+  // Remove reference-only clauses from the question; full source text stays in View instruction.
+  .replace(/\(\s*(?:see|ref\.?|as per)\s+(?:Standard Instruction\s+)?S\.?I\.?\s*\d+[^)]*\)/gi,'')
+  .replace(/\s+as per\s+(?:Standard Instruction\s+)?S\.?I\.?\s*\d+\s+issued on\s+[^‘’']*[‘’']\d{2}\)?\.?/gi,'.')
+  .replace(/\(SAP\s+Codes?\s+[^)]+\)|\[S\.I\.[^\]]*\]/gi,m=>{refs.push(m);return '';})
+  .replace(/\s+([.,;])/g,'$1').replace(/\.{2,}/g,'.').replace(/\.([A-Z])/g,'. $1').replace(/\s{2,}/g,' ').trim();
+ return {text,refs};
+}
 export const taskTitle=t=>taskCopy(t).text.split(/\s*\(/)[0].replace(/\s*\[.*$/,'').replace(/\.$/,'');
 export const needsInstruction=t=>t.text.length>220;
 const paths={bus:'M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2M8 15h1M15 15h1',check:'M5 12l4 4L19 6',fault:'M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 4-4-4z',pause:'M8 5v14M16 5v14',clock:'M12 7v5l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',back:'M19 12H5M11 6l-6 6 6 6',book:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',list:'M5 5h14M5 12h14M5 19h14',next:'M5 12h14M13 6l6 6-6 6',edit:'M4 20l1-5L17 3l4 4L9 19z'};
