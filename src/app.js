@@ -1,3 +1,4 @@
+import {fleetFlowView,setupFleet,fleetBusy,isFleetRoute} from './fleet-flow.js';
 import {actionsView,setupActions,actionsBusy,isActionsRoute} from './actions-flow.js';
 import {FLEETTAP_APP_VERSION} from './version.js';
 import {sopView} from './sop-guide.js';
@@ -7,7 +8,7 @@ import {photoGallery,previewPhotos,setupPhotoPicker} from './photos.js';
 import {tabletView,setupTablet,isTabletSaving} from './tablet.js';
 import {api} from './api.js';
 import {adminView,manager,syncUserScope} from './admin-ui.js';
-import {fleetView,vehicleView,checksView,startView,inspectionView} from './fleet-pages.js';
+import {checksView} from './fleet-pages.js';
 import {readings} from './inspections.js';
 import {scoped} from './model.js';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -31,27 +32,26 @@ function recordList(kind){const list=rows(kind);return list.length?`<div class="
 function reports(kind){return mode==='records'?heading(kind==='faults'?'Faults':'Report')+tabs([['new',kind==='faults'?'Report fault':'New report'],['records','View records']])+recordList(kind):reportFlowView(tabletContext());}
 function sops(){return sopView(tabletContext());}
 function actions(){return actionsView(tabletContext());}
-function fleet(){return mode==='list'?(manager(me)?tabs([['list','Choose bus'],['dashboard','Overview'],['new','Add bus']]):'')+tabletView(tabletContext()):fleetView(state,garage,mode,tabs);}
-function vehiclePage(id){return tabletView(tabletContext());}
+function fleet(){return fleetFlowView({...tabletContext(),openingCheck:isTabletSaving()});}
 function checks(){return mode==='list'?(manager(me)?tabs([['list','Start check'],['records','Records'],['templates','Templates']]):'')+tabletView(tabletContext()):checksView(state,garage,mode,tabs);}
 function tabletContext(){return {state,garage,me,page:current()};}
 function render(){
  stopDictation();
- const page=current(),isTablet=(['fleet','checks'].includes(page)&&mode==='list')||/^(vehicle|start|inspection)(\/|$)/.test(page)||(isReportRoute(page)&&mode!=='records')||page==='sops'||page.startsWith('sops/')||isActionsRoute(page);
- document.body.classList.toggle('tablet-shell',isTablet);document.body.classList.toggle('actions-mode',isActionsRoute(page));document.body.classList.toggle('sop-mode',page==='sops'||page.startsWith('sops/'));document.body.classList.toggle('report-mode',isReportRoute(page)&&mode!=='records');document.body.classList.toggle('inspection-mode',page.startsWith('inspection/'));
+ const page=current(),isTablet=(['fleet','checks'].includes(page)&&mode==='list')||/^(vehicle|start|inspection)(\/|$)/.test(page)||(isReportRoute(page)&&mode!=='records')||page==='sops'||page.startsWith('sops/')||isActionsRoute(page)||isFleetRoute(page);
+ document.body.classList.toggle('tablet-shell',isTablet);document.body.classList.toggle('fleet-mode',isFleetRoute(page));document.body.classList.toggle('actions-mode',isActionsRoute(page));document.body.classList.toggle('sop-mode',page==='sops'||page.startsWith('sops/'));document.body.classList.toggle('report-mode',isReportRoute(page)&&mode!=='records');document.body.classList.toggle('inspection-mode',page.startsWith('inspection/'));
  const count=rows('actions').filter(a=>a.status!=='Closed').length;
  $('#account').innerHTML=`<button class="topbar-bell" data-go="actions" aria-label="Actions, ${count} outstanding">${icon('bell')}${count?`<span class="action-count">${count}</span>`:''}</button><button class="avatar" id="profile-trigger" aria-label="Profile and garage" aria-expanded="${profile}">${esc(me.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</button><div class="profile-panel" ${profile?'':'hidden'}><h2>${esc(me.name)}</h2><p class="help">${esc(me.email)} · ${esc(me.role.replaceAll('_',' '))}</p><label>Garage<select id="garage-select">${garages.map(g=>`<option value="${g.id}" ${garage===g.id?'selected':''}>${esc(g.organisation_name+' · '+g.name)}</option>`).join('')}</select></label><p class="help">Secure account · shared garage records.</p><button class="secondary" id="refresh-workspace">Refresh records</button>${manager(me)?'<button class="secondary" data-go="admin">Manage users &amp; garages</button>':''}<button class="secondary" data-go="password">Change password</button><button class="secondary" id="logout">Sign out</button><button class="secondary" id="export">Export garage records</button><span class="profile-version">FleetTap Version ${esc(FLEETTAP_APP_VERSION)}</span></div>`;
  const views={password:()=>`<form id="password-form" class="card login"><h1>Change password</h1><label>Current password<input type="password" name="current_password" autocomplete="current-password" required maxlength="128"></label><label>New password<input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128"></label><label>Confirm new password<input type="password" name="confirm" autocomplete="new-password" required minlength="12" maxlength="128"></label><button>Save and sign out</button></form>`,admin:()=>adminView(me,adminData),home,report:()=>reports('reports'),faults:()=>reports('faults'),fleet,sops,checks,actions};
  const parts=page.split('/');
- $('#workspace').innerHTML=(parts[0]==='actions'?actions():parts[0]==='sops'?sops():parts[0]==='history'?vehicleView(state,garage,parts[1]):parts[0]==='vehicle'?vehiclePage(parts[1]):parts[0]==='start'?tabletView(tabletContext()):parts[0]==='inspection'?tabletView(tabletContext()):parts[0]==='defect'?reports('faults'):(views[page]||home)());
+ $('#workspace').innerHTML=(isFleetRoute(page)?fleet():parts[0]==='actions'?actions():parts[0]==='sops'?sops():parts[0]==='start'?tabletView(tabletContext()):parts[0]==='inspection'?tabletView(tabletContext()):parts[0]==='defect'?reports('faults'):(views[page]||home)());
 
  if(page==='admin')syncUserScope(adminData||{garages:[]});
  const selected=overlay|| (page==='home'?'home':'menu');
  $('#navigation-root').innerHTML=`<nav class="mobile-navigation" aria-label="Quick navigation"><span class="nav-highlight" style="transform:translateX(${['back','home','menu','ask'].indexOf(selected)*100}%)"></span>${[['back','Back'],['home','Home'],['menu','Menu'],['ask','Ask']].map(([id,label])=>`<button data-nav="${id}" class="${selected===id?'selected':''}" aria-label="${id==='ask'?'Ask FleetTap':label}" ${id==='back'&&page==='home'&&!overlay?'disabled':''}>${icon(id==='ask'?'spark':id)}<span>${label}</span></button>`).join('')}</nav>`;
  $('#overlay-root').innerHTML=overlay?`<div class="navigation-shade" data-dismiss></div>${overlay==='menu'?`<aside class="navigation-drawer"><div class="row"><h2>Menu</h2><button class="icon-button" data-dismiss aria-label="Close menu">${icon('close')}</button></div><nav aria-label="Main menu">${manager(me)?'<button data-go="admin">Manage users &amp; garages</button>':''}${tiles.map(([label,,key])=>`<button data-go="${key}">${label}</button>`).join('')}</nav></aside>`:`<section class="ask-panel" aria-label="Ask FleetTap"><div class="row"><h2>${icon('spark')} Ask FleetTap</h2><button class="icon-button" data-dismiss aria-label="Close Ask FleetTap">${icon('close')}</button></div><p>There are <strong>${count} outstanding actions</strong> and <strong>${rows('faults').length} recorded defects</strong> in this garage.</p><div class="ask-suggestions"><button data-go="actions">View actions</button><button data-go="sops">Find instructions</button></div><p class="help">Live record summary. AI questions and approved-document search are planned.</p></section>`}`:'';
 }
-document.addEventListener('click',e=>{const el=e.target.closest('button,[data-dismiss]');if(!el||isTabletSaving()||reportBusy()||actionsBusy())return;if(el.dataset.go){go(el.dataset.go);return;}if(el.dataset.vehicle){go('vehicle/'+el.dataset.vehicle);return;}if(el.dataset.mode){mode=el.dataset.mode;render();return;}if(el.id==='profile-trigger'){profile=!profile;overlay='';render();return;}if(el.hasAttribute('data-dismiss')){overlay='';render();return;}if(el.dataset.nav){const n=el.dataset.nav;if(n==='home')go('home');else if(n==='back'){if(overlay){overlay='';render();}else if(current().startsWith('inspection/')){const p=current().split('/');go(p.length>2?'inspection/'+p[1]:'checks');}else if(current().startsWith('vehicle/'))go('fleet');else go('home');}else{overlay=overlay===n?'':n;profile=false;render();}return;}if(el.id==='export'){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fleettap-demo-records.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}});
-document.addEventListener('change',async e=>{if(e.target.name==='photos')previewPhotos(e.target);if(e.target.id==='garage-select'){if(reportBusy()||actionsBusy()){e.target.value=garage;return;}try{await reloadWorkspace(e.target.value);go('home');}catch(err){notify(err.message);}}if(['user-role','user-org'].includes(e.target.id))syncUserScope(adminData);});
+document.addEventListener('click',e=>{const el=e.target.closest('button,[data-dismiss]');if(!el||isTabletSaving()||reportBusy()||actionsBusy()||fleetBusy())return;if(el.dataset.go){go(el.dataset.go);return;}if(el.dataset.vehicle){go('vehicle/'+el.dataset.vehicle);return;}if(el.dataset.mode){mode=el.dataset.mode;render();return;}if(el.id==='profile-trigger'){profile=!profile;overlay='';render();return;}if(el.hasAttribute('data-dismiss')){overlay='';render();return;}if(el.dataset.nav){const n=el.dataset.nav;if(n==='home')go('home');else if(n==='back'){if(overlay){overlay='';render();}else if(current().startsWith('inspection/')){const p=current().split('/');go(p.length>2?'inspection/'+p[1]:'checks');}else if(current().startsWith('vehicle/'))go('fleet');else go('home');}else{overlay=overlay===n?'':n;profile=false;render();}return;}if(el.id==='export'){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fleettap-demo-records.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}});
+document.addEventListener('change',async e=>{if(e.target.name==='photos')previewPhotos(e.target);if(e.target.id==='garage-select'){if(reportBusy()||actionsBusy()||fleetBusy()){e.target.value=garage;return;}try{await reloadWorkspace(e.target.value);go('home');}catch(err){notify(err.message);}}if(['user-role','user-org'].includes(e.target.id))syncUserScope(adminData);});
 document.addEventListener('input',e=>{if(e.target.id==='fleet-search'){document.querySelectorAll('[data-search]').forEach(el=>el.hidden=!el.dataset.search.includes(e.target.value.toLowerCase()));const hint=$('#search-empty');if(hint)hint.hidden=!!document.querySelector('[data-search]:not([hidden])');}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){overlay='';profile=false;render();}});
 document.addEventListener('submit',async e=>{
@@ -61,7 +61,6 @@ document.addEventListener('submit',async e=>{
   if(['user-form','organisation-form','garage-form'].includes(form.id)){
    const action={'user-form':'create_user','organisation-form':'organisation','garage-form':'garage'}[form.id];const result=await api('admin',{action,...values});await reloadWorkspace();adminData=await api('admin');render();if(result.link)showLink(result.link);notify('Saved.');return;
   }
-  if(form.id==='vehicle-form'){const v=await mutation('vehicle',values);go('vehicle/'+v.id);return;}
   if(form.id==='start-inspection'){const i=await mutation('start',values);go('inspection/'+i.id);return;}
   if(form.dataset.pm3Item){await mutation('answer',{result:values.result,notes:values.notes,readings:(readings[form.dataset.pm3Item]||[]).map((_,n)=>values['reading-'+n])},{id:form.dataset.inspection,item:form.dataset.pm3Item});let stamp=form.querySelector('.saved-stamp');if(!stamp){stamp=document.createElement('p');stamp.className='saved-stamp';form.append(stamp);}stamp.textContent='Saved to FleetTap · '+me.name;notify('Item saved to FleetTap.');return;}
   if(form.id==='submit-pm3')await mutation('submit',values,{id:form.dataset.inspection});
@@ -72,7 +71,7 @@ document.addEventListener('submit',async e=>{
  finally{if(button)button.disabled=false;}
 });
 function showLink(link){const box=$('#activation-result');if(box){box.hidden=false;$('#activation-link').value=link;box.scrollIntoView({block:'center',behavior:'smooth'});}}
-document.addEventListener('click',async e=>{const el=e.target.closest('button');if(!el||reportBusy()||actionsBusy())return;try{
+document.addEventListener('click',async e=>{const el=e.target.closest('button');if(!el||reportBusy()||actionsBusy()||fleetBusy())return;try{
  if(el.id==='logout'){await api('auth',{action:'logout'});location.hash='login';location.reload();}
  if(el.id==='refresh-workspace'){await reloadWorkspace();render();notify('Latest records loaded.');}
  if(el.id==='copy-link'){await navigator.clipboard.writeText($('#activation-link').value);notify('Link copied.');}
@@ -80,6 +79,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('button');
  }catch(error){notify(error.message);}finally{el.disabled=false;}});
 window.addEventListener('hashchange',()=>{mode='list';profile=false;overlay='';render();window.scrollTo(0,0);});
 setupPhotoPicker();
+setupFleet({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
 setupActions({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
 setupReportFlow({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify,records:kind=>{mode='records';render();}});
 setupTablet({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
