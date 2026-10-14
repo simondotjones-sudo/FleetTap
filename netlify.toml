@@ -6,3 +6,9 @@
 
 [functions]
   node_bundler = "esbuild"
+
+[[redirects]]
+  from = "https://fleettap.netlify.app/*"
+  to = "https://fleet-tap.com/:splat"
+  status = 301
+  force = true
