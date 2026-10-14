@@ -8,3 +8,4 @@
 - Shared garage writes must pass validated domain commands and compare the current version atomically. Do not accept arbitrary client state replacement.
 - PM3 is a draft mapping. The regeneration conflict stays blocked pending Technical Office approval. Inspection submission does not release a vehicle.
 - Run npm test and npm run build before release; exercise auth changes using the isolated validation branch. Do not send emails without explicit authorization.
+- App versions follow TapTick's major.DD.MM.YY.build format. Before every release, increment FLEETTAP_APP_BUILD and update FLEETTAP_APP_RELEASE_DATE in src/version.js. Never reset the build sequence. The profile, asset cache keys and generated version.json all derive from this file; package.json is package metadata, not the displayed release version.

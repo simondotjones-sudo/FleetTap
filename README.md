@@ -1,8 +1,10 @@
-# FleetTap — v0.3.0
+# FleetTap
 
 Derived from PharmaTap commit 042e9f5746eecdd631704a1d0adb62b6de8a7807. Retains Gellix and layout with black/yellow FleetTap branding.
 
 Run `npm test` and `npm run build`. Netlify: main branch, npm run build, dist. Runtime database configuration is required; see below.
+
+App versioning follows TapTick: `major.DD.MM.YY.build`, starting at `1.14.10.26.1`. Update the release date and increment the build in `src/version.js` for every release, including small UI changes; the build never resets. Profile displays the version. The build applies the same build number to CSS/JavaScript entry URLs and all local module imports, and publishes `version.json` for release verification. This frontend release version is independent of npm package metadata and database record versions. FleetTap has no service-worker cache; HTML is revalidated on reload.
 
 Fleet: searchable vehicles, add sample vehicle, garage dashboard, vehicle profile and linked inspection/defect history. Due dates are manually entered. Missing history stays unknown.
 
