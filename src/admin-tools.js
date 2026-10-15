@@ -1,3 +1,4 @@
+import {managerRecordsView,setupManagerRecords} from './manager-records.js';
 import {esc} from './api.js';
 import {manager} from './admin-ui.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
@@ -8,12 +9,13 @@ import {fleetModels,vehicleModelType} from './fleet-models.js';
 import {schedulesView,schedulePreview,scheduleValues,setupScheduleUI} from './schedule-ui.js';
 
 const go=(page,label)=>`<button type="button" class="tap-small" data-go="${esc(page)}">${esc(label)}</button>`;
-const tile=(page,title,sub)=>`<button type="button" class="tap-tile admin-tile" data-go="${esc(page)}"><strong>${esc(title)}</strong><small>${esc(sub)}</small></button>`;
+const hubPaths={records:'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',report:'M12 5v14M5 12h14',template:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',calendar:'M4 5h16v16H4zM4 10h16M8 3v4M16 3v4',bus:'M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2',users:'M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0M5 22v-5a7 7 0 0 1 14 0v5',export:'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5'};
+const tile=(page,title,sub,icon='records')=>`<button type="button" class="tap-tile admin-tile" ${page?`data-go="${esc(page)}"`:'id="export"'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${hubPaths[icon]}"/></svg><strong>${esc(title)}</strong><small>${esc(sub)}</small></button>`;
 const date=v=>v?esc(v.slice(0,10).split('-').reverse().join('.')):'Not recorded';
 const pill=s=>`<span class="pill ${s==='Overdue'?'critical':['Due today','Due soon','Awaiting review'].includes(s)?'attention':'status-neutral'}">${esc(s)}</span>`;
 const frame=(title,content,back='manage')=>`<section class="admin-tools"><div class="tap-heading"><p>Administration</p><h1>${esc(title)}</h1></div>${content}<div class="toolbar">${go(back,'← Back')}</div></section>`;
 const docURL=(c,id,page=1)=>`/.netlify/functions/documents?garage=${encodeURIComponent(c.garage)}&id=${encodeURIComponent(id)}#page=${page}`;
-export const adminRoute=page=>['manage','bus-edit','inspection-admin','template-admin','schedules'].includes(page.split('/')[0]);
+export const adminRoute=page=>['manage','bus-edit','inspection-admin','template-admin','schedules','submitted-reports'].includes(page.split('/')[0]);
 let host,busy=false;
 export const adminBusy=()=>busy;
 const reasonField=()=>'<label>Reason for this change<textarea name="reason" required minlength="5" maxlength="2000" placeholder="Explain the correction for the change history"></textarea></label>';
@@ -44,14 +46,15 @@ export function adminToolsView(c){
  if(!manager(c.me))return frame('Administrator access required','Ask your administrator.','home');
  if(!c.garage)return frame('Choose a garage','Create or choose a garage to manage its fleet.','admin');
  let parts;try{parts=c.page.split('/').map(decodeURIComponent);}catch{return frame('Page unavailable','Choose a page from the menu.');}
+ if(parts[0]==='submitted-reports')return managerRecordsView(c);
  if(parts[0]==='bus-edit')return busEditor(c,parts[1]);
  if(parts[0]==='inspection-admin')return inspectionAdmin(c,parts[1]);
  if(parts[0]==='template-admin')return templateAdmin(c,parts[1],parts[2]);
  if(parts[0]==='schedules')return schedulesView(c,parts[1],parts[2]);
  const deleted=c.state.inspections.filter(i=>i.garage===c.garage&&i.deletedAt);
- return frame('Manage FleetTap',`<div class="tap-grid jobs">${tile('inspection-records','Inspection records','Review and manage garage inspections')}${tile('template-admin','Inspection template','Original PDF, questions and sections')}${tile('schedules','Schedules','Last inspection and next due')}${tile('admin','Users & garages','Accounts and access')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}`,'home');
+ return `<section class="admin-tools manager-hub"><div class="tap-heading"><h1>Manage FleetTap</h1></div><div class="manager-hub-grid">${tile('inspection-records','Inspection records','Review and manage inspections','records')}${tile('submitted-reports','Submitted reports','Incident, safety and fault reports','report')}${tile('template-admin','Inspection template','Original PDF, questions and sections','template')}${tile('schedules','Schedules','Last inspection and next due','calendar')}${tile('fleet/new','Add a bus','Add a vehicle to this depot','bus')}${tile('admin','Users & garages','Accounts and access','users')}${tile('','Export records','Download this depot’s records','export')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}</section>`;
 }
-export function setupAdminTools(h){host=h;setupScheduleUI(h,()=>busy);
+export function setupAdminTools(h){host=h;setupManagerRecords(h);setupScheduleUI(h,()=>busy);
  document.addEventListener('submit',async e=>{
   const form=e.target;if(!form.dataset.adminForm)return;e.preventDefault();if(busy)return;const c=host.context();if(!manager(c.me))return;
   const v=Object.fromEntries(new FormData(form)),kind=form.dataset.adminForm;const error=form.querySelector('.admin-error');error.textContent='';
@@ -71,7 +74,7 @@ export function setupAdminTools(h){host=h;setupScheduleUI(h,()=>busy);
     const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Could not save the document.'),{status:response.status});await host.reload();host.render();
    }
    host.notify('Saved to FleetTap.');
-  }catch(e){error.textContent=e.message+(e.status===409?' Your entry is still here. Refresh records when you are ready to retry.':'');}
+  }catch(e){error.textContent=e.message;if(e.status===409){try{await host.reload();error.textContent='Latest records loaded. Your entry is still here. Review it and save again.';}catch{error.textContent+=' Your entry is still here. Check your connection and try again.';}}}
   finally{busy=false;if(button)button.disabled=false;}
  });
  document.addEventListener('click',async e=>{
