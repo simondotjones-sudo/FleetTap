@@ -3,6 +3,9 @@ import {db,actor,body,json,garageFor,endpoint,fail,safeUser} from '../../server/
 import {canManage} from '../../server/security.mjs';
 import {addRecord,submitAction,savedRecordRequest} from '../../src/model.js';
 import {startInspection,saveAnswer,submitInspection,saveVehicle} from '../../src/inspections.js';
+import {editTemplate} from '../../src/templates.js';
+import {editVehicle,manageInspection} from '../../src/inspection-admin.js';
+import {saveSchedule} from '../../src/scheduling.js';
 export default endpoint(async(req)=>{
  const u=await actor(req),sql=db();
  if(req.method==='GET'){
@@ -22,6 +25,10 @@ export default endpoint(async(req)=>{
  const worker=u.name+' ('+u.email+')';
  try{
  switch(b.action){
+  case 'vehicle_edit':if(!canManage(u))fail('Administrator access required.',403);result=editVehicle(state,b.garage,b.id,v,worker);break;
+  case 'inspection_manage':if(!canManage(u))fail('Administrator access required.',403);result=manageInspection(state,b.garage,b.id,v,worker);break;
+  case 'template_edit':if(!canManage(u))fail('Administrator access required.',403);result=editTemplate(state,v,worker);break;
+  case 'schedule':if(!canManage(u))fail('Administrator access required.',403);result=saveSchedule(state,b.garage,v,worker);break;
   case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);result=saveVehicle(state,b.garage,v);break;
   case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos,requestId:v.requestId||null});break;
   case 'start':result=startInspection(state,v.vehicle,b.garage,worker);break;

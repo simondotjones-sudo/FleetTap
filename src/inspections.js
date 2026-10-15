@@ -1,4 +1,6 @@
 import {pm3} from './pm3.js';
+import {templateFor,tasksFor,isPM3} from './templates.js';
+import {validDate} from './scheduling.js';
 import {addRecord} from './model.js';
 export const revision='TO-PMS 035 · Revision 8 · demo mapping 1';
 export const sections=[...new Set(pm3.map(i=>i.section))];
@@ -18,26 +20,29 @@ export const readings={
  '2-20':[['Belts changed','Yes/No'],['Condition check / history reference','text']],
  '2-21':[['Injection pipe task','choice']], '16-5':[['Extinguisher mass','kg',0,100]]
 };
+export const taskReadings=t=>t.fields||readings[t.id]||[];
 export function startInspection(state,vehicle,garage,craftworker){
  if(!state.vehicles.some(v=>v.id===vehicle&&v.garage===garage))throw Error('Choose a vehicle in this garage.');
  if(!craftworker?.trim())throw Error('Enter the demo craftworker name.');
- const existing=state.inspections.find(i=>i.vehicle===vehicle&&i.template===revision&&i.status==='In progress');
+ const existing=state.inspections.find(i=>i.vehicle===vehicle&&i.garage===garage&&isPM3(i)&&!i.deletedAt&&i.status==='In progress');
  if(existing)return existing;
- const item={id:'FT-I-'+crypto.randomUUID().slice(0,8),vehicle,garage,template:revision,craftworker:craftworker.trim(),status:'In progress',created:new Date().toISOString(),answers:{},notes:'',audit:[]};
+ const snapshot=structuredClone(templateFor(state));
+ snapshot.tasks=snapshot.tasks.map(t=>({...t,fields:structuredClone(taskReadings(t))}));delete snapshot.audit;
+ const item={templateId:'pm3',templateSnapshot:snapshot,id:'FT-I-'+crypto.randomUUID().slice(0,8),vehicle,garage,template:revision,craftworker:craftworker.trim(),status:'In progress',created:new Date().toISOString(),answers:{},notes:'',audit:[]};
  state.inspections.unshift(item);return item;
 }
-export function inspectionFor(state,id,garage){const i=state.inspections.find(i=>i.id===id&&i.garage===garage&&i.template===revision);if(!i)throw Error('Inspection unavailable in this garage.');return i;}
-export function outOfRange(task,answer){return (readings[task.id]||[]).some((r,n)=>{const raw=answer.readings?.[n];if(raw==null||raw==='')return false;if(r[1]==='Yes/No')return raw==='No';return r.length===4&&(Number(raw)<r[2]||Number(raw)>r[3]);});}
+export function inspectionFor(state,id,garage){const i=state.inspections.find(i=>i.id===id&&i.garage===garage&&isPM3(i)&&!i.deletedAt);if(!i)throw Error('Inspection unavailable in this garage.');return i;}
+export function outOfRange(task,answer){return taskReadings(task).some((r,n)=>{const raw=answer.readings?.[n];if(raw==null||raw==='')return false;if(r[1]==='Yes/No')return raw==='No';return r.length===4&&(Number(raw)<r[2]||Number(raw)>r[3]);});}
 export function saveAnswer(state,id,garage,taskId,answer){
- const i=inspectionFor(state,id,garage),task=pm3.find(t=>t.id===taskId);
+ const i=inspectionFor(state,id,garage),task=tasksFor(i).find(t=>t.id===taskId);
  if(i.status!=='In progress')throw Error('Submitted inspections are locked.');
  if(!task||task.blocked)throw Error('This item is blocked pending technical review.');
  if(!['OK','Defect','Not completed','Not due'].includes(answer.result))throw Error('Select a result.');
  if(answer.result==='Not due'&&(!task.conditional||task.id==='2-20'))throw Error('This task cannot be marked not due.');
  if(!answer.worker?.trim())throw Error('Enter the craftworker for this item.');
  if(answer.result!=='OK'&&!answer.notes?.trim())throw Error('Add a reason, defect details or maintenance-history reference.');
- const fields=readings[taskId]||[];
- if(['OK','Defect'].includes(answer.result))fields.forEach((r,n)=>{const val=answer.readings?.[n];if(val==null||String(val).trim()==='')throw Error('Complete the required readings.');if(r.length===4&&!Number.isFinite(Number(val)))throw Error('Enter a valid numeric reading.');});
+ const fields=taskReadings(task);
+ if(['OK','Defect'].includes(answer.result))fields.forEach((r,n)=>{const val=answer.readings?.[n];if(val==null||String(val).trim()==='')throw Error('Complete the required readings.');if(r.length===4&&!Number.isFinite(Number(val)))throw Error('Enter a valid numeric reading.');if(r[1]==='Yes/No'&&!['Yes','No'].includes(val))throw Error('Choose Yes or No.');if(r[1]==='choice'&&!['Remove clip (leaving one clip), refit pipe','Remove last clip, refit pipe','No clip present, fit new pipe'].includes(val))throw Error('Choose a valid task.');});
  if(outOfRange(task,answer)&&answer.result==='OK')throw Error('Reading outside the source tolerance. Record a defect and details for review.');
  const previous=i.answers[taskId];
  if(previous?.fault&&answer.result!=='Defect')throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
@@ -47,13 +52,16 @@ export function saveAnswer(state,id,garage,taskId,answer){
 }
 export function submitInspection(state,id,garage,notes){
  const i=inspectionFor(state,id,garage);if(i.status!=='In progress')throw Error('Inspection already submitted.');
- if(pm3.some(t=>!t.blocked&&!i.answers[t.id]))throw Error('Record a result for every available item before submitting.');
+ if(tasksFor(i).some(t=>!t.blocked&&!i.answers[t.id]))throw Error('Record a result for every available item before submitting.');
  i.notes=notes.trim();i.status='Awaiting review';i.submitted=new Date().toISOString();
+ i.audit.push({action:'Submit for review',at:i.submitted,actor:i.amendment?.actor||i.craftworker});
+ if(state.actions.some(a=>a.source===i.id&&a.garage===garage&&a.status==='Open'))return;
  state.actions.unshift({id:'FT-A-'+crypto.randomUUID().slice(0,8),garage,vehicle:i.vehicle,title:'Review PM3 demonstration — blocked regeneration item',source:i.id,owner:'Demo supervisor',status:'Open',evidence:''});
 }
 export function saveVehicle(state,garage,values){
  const id=values.id?.trim().toUpperCase().replace(/\s+/g,'-');if(!id||!values.model?.trim())throw Error('Enter a fleet number and vehicle model.');
  if(!/^[A-Z0-9 -]{1,40}$/.test(id))throw Error('Use letters, numbers, spaces or hyphens for the fleet number.');
- if(state.vehicles.some(v=>v.id===id))throw Error('This fleet number already exists.');
- const v={id,garage,model:values.model.trim(),registration:values.registration?.trim()||'',status:'Awaiting inspection',warranty:'Unknown',history:[],due:values.due||'',created:new Date().toISOString()};state.vehicles.push(v);return v;
+ if(state.vehicles.some(v=>v.id===id&&v.garage===garage))throw Error('This fleet number already exists.');
+ if(values.due&&!validDate(values.due))throw Error('Choose a valid inspection date.');
+ const v={id,garage,name:String(values.name||'').trim().slice(0,120),model:values.model.trim(),registration:values.registration?.trim()||'',status:'Awaiting inspection',warranty:'Unknown',history:[],due:values.due||'',created:new Date().toISOString()};state.vehicles.push(v);return v;
 }

@@ -1,4 +1,4 @@
-import {db,env,body,actor,json,endpoint,fail,garageFor} from '../../server/runtime.mjs';
+import {db,env,body,actor,json,endpoint,fail,garageFor,appOrigin} from '../../server/runtime.mjs';
 import {canManage,canManageUser,permittedAssignment,randomToken,hash} from '../../server/security.mjs';
 const uuid=v=>/^[a-f0-9-]{36}$/.test(v||'');
 export default endpoint(async(req)=>{
@@ -32,7 +32,7 @@ export default endpoint(async(req)=>{
   const token=randomToken();
   const [r]=await sql`WITH created AS (INSERT INTO users(email,name,role,organisation_id,garage_id) VALUES(${email},${name},${role},${org},${garage}) ON CONFLICT(email) DO NOTHING RETURNING id,credential_version), invitation AS (INSERT INTO activation_tokens(token_hash,user_id,credential_version,expires_at) SELECT ${hash(token)},id,credential_version,now()+interval '24 hours' FROM created) INSERT INTO audit_events(actor_id,action,target) SELECT ${u.id},'user_created',id::text FROM created RETURNING target`;
   if(!r)fail('An account with that email already exists.',409);
-  return json({ok:true,link:env('FLEETTAP_APP_ORIGIN')+'/#activate/'+token,expires:'24 hours'});
+  return json({ok:true,link:appOrigin()+'/#activate/'+token,expires:'24 hours'});
  }
  if(['reset_user','set_active'].includes(b.action)){
   if(!uuid(b.user_id))fail('Choose a user.');const [target]=await sql`SELECT * FROM users WHERE id=${b.user_id}`;
@@ -44,7 +44,7 @@ export default endpoint(async(req)=>{
   if(!target.active)fail('Enable the account before creating a reset link.');
   const token=randomToken();
   await sql`WITH changed AS (UPDATE users SET credential_version=credential_version+1 WHERE id=${target.id} RETURNING id,credential_version), link AS (INSERT INTO activation_tokens(token_hash,user_id,credential_version,expires_at) SELECT ${hash(token)},id,credential_version,now()+interval '24 hours' FROM changed) INSERT INTO audit_events(actor_id,action,target) SELECT ${u.id},'password_reset_issued',id::text FROM changed`;
-  return json({ok:true,link:env('FLEETTAP_APP_ORIGIN')+'/#activate/'+token,expires:'24 hours'});
+  return json({ok:true,link:appOrigin()+'/#activate/'+token,expires:'24 hours'});
  }
  fail('Unknown administration request.');
 });
