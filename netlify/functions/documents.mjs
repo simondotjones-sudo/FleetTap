@@ -4,10 +4,14 @@ import {templateFor} from '../../src/templates.js';
 
 // Original documents are private database objects, never files in the public web build/repository.
 export default endpoint(async req=>{
- const u=await actor(req);if(!canManage(u))fail('Administrator access required.',403);
+ const u=await actor(req);
  const p=new URL(req.url).searchParams,garage=p.get('garage');await garageFor(u,garage);const sql=db();
  if(req.method==='GET'){
   const id=p.get('id');if(!/^[a-f0-9-]{36}$/.test(id||''))fail('Document unavailable.',404);
+  if(!canManage(u)){
+   const [row]=await sql`SELECT data FROM garage_records WHERE garage_id=${garage}`;
+   if(!row||templateFor(row.data).sourceId!==id)fail('Document unavailable.',404);
+  }
   const [doc]=await sql`SELECT content FROM inspection_documents WHERE id=${id} AND garage_id=${garage}`;
   if(!doc)fail('Document unavailable.',404);
   return new Response(Buffer.from(doc.content,'base64'),{headers:{'Content-Type':'application/pdf','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline; filename="inspection-source.pdf"','Content-Security-Policy':"sandbox; default-src 'none'"}});

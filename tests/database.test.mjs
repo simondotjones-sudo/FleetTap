@@ -53,7 +53,7 @@ test('isolated Netlify Database: migrations, login, role/garage checks, CAS, pro
   assert.equal((await upload(admin.cookie)).status,403);
   const uploaded=await upload(orgAdmin.cookie);assert.equal(uploaded.status,201);const document=await uploaded.json();version=document.version;
   const getDoc=(cookie,garage=g.id)=>docs(new Request(origin+'/.netlify/functions/documents?'+new URLSearchParams({garage,id:document.id}),{headers:{cookie}}),functionContext);
-  assert.equal((await getDoc(staff.cookie)).status,403);assert.equal((await getDoc(admin.cookie,other.id)).status,403);
+  assert.equal((await getDoc(staff.cookie)).status,200);assert.equal((await getDoc(admin.cookie,other.id)).status,403);
   const downloaded=await getDoc(admin.cookie);assert.equal(downloaded.status,200);assert.equal(await downloaded.text(),pdf.toString());assert.match(downloaded.headers.get('cache-control'),/no-store/);
   assert.equal((await upload(orgAdmin.cookie,version-1)).status,409);
   assert.equal((await write('inspection_manage',{operation:'delete',reason:'Duplicate test record'},{id})).status,200);

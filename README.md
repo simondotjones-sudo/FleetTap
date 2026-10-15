@@ -1,5 +1,17 @@
 # FleetTap
 
+## SOP workspace — 1.15.10.26.14
+
+Organisation SOPs now opens as six large tiles: Create SOP, SOP library, Drafts, Upload & generate, Checklists and PM3 template. New SOPs open on an overview with summary, reference/revision, review date and precautions, then offer a guided step view, full instructions and the attached source PDF. The built-in PM3 overview links to the existing private source PDF for the selected garage; staff can read that current document, while access to superseded inspection sources remains manager-only. Existing technical-review warnings and the blocked regeneration task are unchanged.
+
+Manual SOP authoring supports draft and published states. Publishing requires a summary, steps, full instructions and explicit administrator approval; approval is attributed to the authenticated account. Drafts and their source PDFs are excluded from staff, supervisor and garage-manager responses. Existing SOPs without a status retain their previous published visibility. Saving a published SOP as a draft explicitly withdraws it from staff access until it is published again; the editor explains this before saving. Changes retain previous content in the audit history.
+
+After saving a draft, its author can attach an original PDF up to 4 MB. The additive `20261015235000_sop_documents.sql` migration stores private documents at organisation scope, so the published PDF is available in all of that organisation's garages. Uploads validate role, organisation/garage scope, same origin, file signature, size and content version. Sources cannot be replaced while published. Document responses are authenticated and `private, no-store`; bytes are never returned in workspace JSON or placed in the public build. Production `FLEETTAP_DATABASE_PROVIDER=netlify` was verified read-only before preparing this release; the managed migration is applied by deployment.
+
+Upload & generate is a clearly labelled future flow and makes no OpenAI calls. Planned implementation: PDF/Word source → Responses API document input → schema-constrained SOP draft (summary, scope/responsibilities, precautions, steps, full instruction, references and unresolved questions) → administrator comparison with the source and approval → publication. Treat document contents as untrusted source material, retain source references and technical limits, and flag missing or contradictory instructions. Do not auto-publish generated material. PDF attachments and manual authoring work independently of future generation; Word attachment/conversion and generated standard PDFs are not implemented in this release.
+
+Validation: 68 Node tests, including an isolated Netlify Database with real migrations, SOP publication and document access across roles and organisations; successful production build; desktop (1440px), tablet (1024px) and phone (390px) browser checks with synthetic data for draft creation, PDF attachment, approval validation, publication, staff reading and step navigation. Hosted deployment remains a separate release step.
+
 Derived from PharmaTap commit 042e9f5746eecdd631704a1d0adb62b6de8a7807. Retains Gellix and layout with black/yellow FleetTap branding.
 
 Run `npm test` and `npm run build`. Netlify: main branch, npm run build, dist. Runtime database configuration is required; see below.

@@ -1,14 +1,30 @@
 import {addRecord} from './model.js';
+export const sopPublished=x=>!x.status||x.status==='Published';
+export function visibleContent(data={},canAuthor=false){
+ const clean=x=>{const {audit,...entry}=x;return entry;};
+ return {sops:(data.sops||[]).filter(x=>canAuthor||sopPublished(x)).map(x=>canAuthor?x:clean(x)),checklists:(data.checklists||[]).map(x=>canAuthor?x:clean(x))};
+}
 // Organisation-authored content is shared by all of its garages.
 export function saveContent(data,kind,values,actor){
  if(!['sops','checklists'].includes(kind))throw Error('Choose SOPs or checklists.');
  const list=data[kind]??=[],old=values.id?list.find(x=>x.id===values.id):null;
  if(values.id&&!old)throw Error('Content unavailable.');
  const title=String(values.title||'').trim(),instructions=String(values.instructions||'').trim();
- if(!title||title.length>160||!instructions||instructions.length>20000)throw Error('Enter a title and full instructions (up to 20,000 characters).');
+ const status=kind==='sops'?(values.status||old?.status||'Draft'):'Published';
+ if(!['Draft','Published'].includes(status))throw Error('Choose Draft or Published.');
+ if(!title||title.length>160||instructions.length>20000||(status==='Published'&&!instructions))throw Error('Enter a title and full instructions (up to 20,000 characters).');
  const steps=String(values.steps||'').split('\n').map(s=>s.trim()).filter(Boolean);
- if(!steps.length||steps.length>100||steps.some(s=>s.length>1000))throw Error('Enter 1–100 steps or questions, one per line (up to 1,000 characters each).');
- const entry={id:old?.id||crypto.randomUUID(),title,instructions,steps,version:(old?.version||0)+1,updated:new Date().toISOString(),updatedBy:actor,audit:[...(old?.audit||[]),...(old?[{at:new Date().toISOString(),actor,previous:{title:old.title,instructions:old.instructions,steps:old.steps,version:old.version}}]:[])]};
+ if((status==='Published'&&!steps.length)||steps.length>100||steps.some(s=>s.length>1000))throw Error('Enter 1–100 steps or questions, one per line (up to 1,000 characters each).');
+ const extra={};
+ if(kind==='sops'){
+  for(const [key,max] of [['summary',1200],['reference',200],['revision',80],['scope',2000],['precautions',4000]]){extra[key]=String(values[key]??old?.[key]??'').trim();if(extra[key].length>max)throw Error(`${key} is too long (maximum ${max} characters).`);}
+  extra.reviewDate=String(values.reviewDate??old?.reviewDate??'');
+  if(extra.reviewDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(extra.reviewDate)||!Number.isFinite(Date.parse(extra.reviewDate))||new Date(extra.reviewDate).toISOString().slice(0,10)!==extra.reviewDate))throw Error('Choose a valid review date.');
+  if(status==='Published'&&(!extra.summary||values.approved!=='yes'))throw Error('Add a summary and confirm that you have reviewed and approved this SOP before publishing.');
+  Object.assign(extra,{status,sourceId:old?.sourceId||null,sourceName:old?.sourceName||null,approvedBy:status==='Published'?actor:null,approvedAt:status==='Published'?new Date().toISOString():null});
+ }
+ const {audit:oldAudit,...previous}=old||{};
+ const entry={id:old?.id||crypto.randomUUID(),title,instructions,steps,...extra,version:(old?.version||0)+1,updated:new Date().toISOString(),updatedBy:actor,audit:[...(oldAudit||[]),...(old?[{at:new Date().toISOString(),actor,previous}]:[])]};
  if(old)list[list.indexOf(old)]=entry;else list.push(entry);data[kind]=list;return entry;
 }
 export function checklistCommand(state,garage,action,values,id,content,actor){

@@ -1,5 +1,5 @@
 import {closeRecord} from '../../src/reviews.js';
-import {checklistCommand} from '../../src/content-model.js';
+import {checklistCommand,visibleContent} from '../../src/content-model.js';
 import {workerName} from '../../src/roles.js';
 import {validateAttachments} from '../../server/photos.mjs';
 import {db,actor,body,json,garageFor,endpoint,fail,safeUser} from '../../server/runtime.mjs';
@@ -16,7 +16,7 @@ export default endpoint(async(req)=>{
   const requested=new URL(req.url).searchParams.get('garage');const garage=requested||garages[0]?.id;
   if(!garage)return json({user:safeUser(u),garages,state:null,version:0});
   const g=await garageFor(u,garage);const [content]=await sql`SELECT data,version FROM organisation_content WHERE organisation_id=${g.organisation_id}`;const [org]=await sql`SELECT role_names,login_code FROM organisations WHERE id=${g.organisation_id}`;const [record]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${garage}`;
-  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,state:record.data,version:record.version,garage,content:content?.data||{sops:[],checklists:[]},contentVersion:content?.version||0,organisation:g.organisation_id});
+  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,state:record.data,version:record.version,garage,content:visibleContent(content?.data,canAuthor(u)),contentVersion:content?.version||0,organisation:g.organisation_id});
  }
  const b=await body(req);const g=await garageFor(u,b.garage);
  if(!Number.isInteger(b.version)||b.version<0)fail('Reload the garage before saving.',409);
