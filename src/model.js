@@ -9,7 +9,7 @@ export function seed(){return {schema:1,vehicles:[
  {id:'DEMO-271',garage:'demo-north',model:'SG271+ demonstration vehicle',status:'Awaiting inspection',warranty:'Unknown',history:[]},
  {id:'DEMO-302',garage:'demo-north',model:'SG271+ demonstration vehicle',status:'Held for review',warranty:'Unknown',history:[]},
  {id:'DEMO-315',garage:'demo-south',model:'SG271+ demonstration vehicle',status:'Awaiting inspection',warranty:'Unknown',history:[]}
- ],reports:[],faults:[{id:'FT-F-DEMO',garage:'demo-north',vehicle:'DEMO-302',title:'Access ramp intermittently fails to deploy',description:'Fictional example for the garage walkthrough.',status:'Open',owner:'Demo supervisor',created:'2026-10-14T09:00:00Z'}],actions:[{id:'FT-A-DEMO',garage:'demo-north',vehicle:'DEMO-302',title:'Investigate intermittent ramp fault',source:'FT-F-DEMO',owner:'Demo supervisor',status:'Open',evidence:''}],inspections:[]};}
+ ],reports:[],faults:[{id:'FT-F-DEMO',garage:'demo-north',vehicle:'DEMO-302',title:'Access ramp intermittently fails to deploy',description:'Fictional example for the garage walkthrough.',status:'Open',owner:'Demo supervisor',created:'2026-10-14T09:00:00Z'}],actions:[{id:'FT-A-DEMO',garage:'demo-north',vehicle:'DEMO-302',title:'Investigate intermittent ramp fault',source:'FT-F-DEMO',owner:'Supervisor',status:'Open',evidence:''}],inspections:[]};}
 export function scoped(records,garage){return records.filter(r=>r.garage===garage);}
 export function addRecord(state,kind,values){
  if(!['reports','faults'].includes(kind))throw Error('Unknown record type');
@@ -20,7 +20,7 @@ export function addRecord(state,kind,values){
  const id=`FT-${kind==='faults'?'F':'R'}-${crypto.randomUUID().slice(0,8)}`;
  const record={...values,id,title:values.title.trim(),description:values.description.trim(),status:'Open',created:new Date().toISOString()};
  state[kind].unshift(record);
- state.actions.unshift({id:`FT-A-${crypto.randomUUID().slice(0,8)}`,garage:values.garage,vehicle:values.vehicle,title:`Review: ${record.title}`,source:id,owner:'Demo supervisor',status:'Open',evidence:''});
+ state.actions.unshift({id:`FT-A-${crypto.randomUUID().slice(0,8)}`,garage:values.garage,vehicle:values.vehicle,title:`Review: ${record.title}`,source:id,owner:'Supervisor',status:'Open',evidence:''});
  return record;
 }
 export function submitAction(state,id,evidence){const action=state.actions.find(a=>a.id===id);if(!action)throw Error('Action not found');if(!evidence.trim())throw Error('Describe the work completed.');action.evidence=evidence.trim();action.status='Awaiting review';}

@@ -72,6 +72,7 @@ test('schedule dates clamp calendar months and handle leap years, due boundaries
 });
 test('admin routes escape content, expose all requested controls and deny mechanics',()=>{
  const s=seed(),i=newInspection(s),c={state:s,garage,me:{role:'garage_manager'},page:'manage'};
+ c.me.role='organisation_admin';
  for(const page of ['manage','bus-edit/DEMO-271','inspection-admin/'+i.id,'template-admin','template-admin/question/1-1','template-admin/question/new','schedules','schedules/DEMO-271']){c.page=page;assert.ok(adminToolsView(c).length>300);}
  s.vehicles[0].name='<script>alert(1)</script>';c.page='bus-edit/DEMO-271';assert.match(adminToolsView(c),/&lt;script&gt;/);assert.doesNotMatch(adminToolsView(c),/<script>/);
  c.me.role='mechanic';assert.match(adminToolsView(c),/Administrator access required/);

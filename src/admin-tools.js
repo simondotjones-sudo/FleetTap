@@ -1,3 +1,4 @@
+import {author} from './roles.js';
 import {managerRecordsView,setupManagerRecords} from './manager-records.js';
 import {esc} from './api.js';
 import {manager} from './admin-ui.js';
@@ -49,10 +50,10 @@ export function adminToolsView(c){
  if(parts[0]==='submitted-reports')return managerRecordsView(c);
  if(parts[0]==='bus-edit')return busEditor(c,parts[1]);
  if(parts[0]==='inspection-admin')return inspectionAdmin(c,parts[1]);
- if(parts[0]==='template-admin')return templateAdmin(c,parts[1],parts[2]);
+ if(parts[0]==='template-admin')return author(c.me)?templateAdmin(c,parts[1],parts[2]):frame('Organisation Admin access required','Contact your Organisation Admin.');
  if(parts[0]==='schedules')return schedulesView(c,parts[1],parts[2]);
  const deleted=c.state.inspections.filter(i=>i.garage===c.garage&&i.deletedAt);
- return `<section class="admin-tools manager-hub"><div class="tap-heading"><h1>Manage FleetTap</h1></div><div class="manager-hub-grid">${tile('inspection-records','Inspection records','Review inspections','records')}${tile('submitted-reports','Submitted reports','View saved reports','report')}${tile('template-admin','Inspection template','PDF & questions','template')}${tile('schedules','Schedules','Inspection dates','calendar')}${tile('fleet/new','Add a bus','Add to this depot','bus')}${tile('admin','Users & garages','Accounts & access','users')}${tile('','Export records','Download records','export')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}</section>`;
+ return `<section class="admin-tools manager-hub"><div class="tap-heading"><h1>Manage FleetTap</h1></div><div class="manager-hub-grid">${tile('inspection-records','Inspection records','Review inspections','records')}${tile('submitted-reports','Submitted reports','View saved reports','report')}${author(c.me)?tile('content/sops','SOPs & checklists','Content & templates','template'):''}${tile('reviews','Review & sign off','Close completed work','records')}${tile('schedules','Schedules','Inspection dates','calendar')}${tile('fleet/new','Add a bus','Add to this depot','bus')}${tile('admin','Users & garages','Accounts & access','users')}${tile('','Export records','Download records','export')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}</section>`;
 }
 export function setupAdminTools(h){host=h;setupManagerRecords(h);setupScheduleUI(h,()=>busy);
  document.addEventListener('submit',async e=>{

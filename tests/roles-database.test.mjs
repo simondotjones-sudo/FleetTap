@@ -1,0 +1,104 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {NetlifyDB} from '@netlify/database-dev';
+import {getDatabase} from '@netlify/database';
+import {randomToken,hashPassword} from '../server/security.mjs';
+import {roleKeys} from '../src/roles.js';
+
+test('five roles: isolated database registration, permissions, tenant boundaries, sign-off, content, demo users and revocation',async()=>{
+ const local=new NetlifyDB({logger:()=>{}}),url=await local.start();
+ process.env.NETLIFY_DB_URL=url;process.env.NETLIFY_DB_DRIVER='server';delete process.env.CONTEXT;
+ const db=getDatabase({connectionString:url}),sql=db.sql,ctx={ip:'roles-test',deploy:{context:'deploy-preview'}},origin='https://roles.test';
+ try{
+  await local.applyMigrations('./netlify/database/migrations');
+  const auth=(await import('../netlify/functions/auth.mjs')).default,admin=(await import('../netlify/functions/admin.mjs')).default,workspace=(await import('../netlify/functions/workspace.mjs')).default,content=(await import('../netlify/functions/content.mjs')).default;
+  const [org]=await sql`INSERT INTO organisations(name) VALUES('Roles test') RETURNING *`;
+  const [otherOrg]=await sql`INSERT INTO organisations(name) VALUES('Other tenant') RETURNING *`;
+  const [garage]=await sql`INSERT INTO garages(name,organisation_id) VALUES('North',${org.id}) RETURNING *`;
+  const [south]=await sql`INSERT INTO garages(name,organisation_id) VALUES('South',${org.id}) RETURNING *`;
+  const [foreign]=await sql`INSERT INTO garages(name,organisation_id) VALUES('Foreign',${otherOrg.id}) RETURNING *`;
+  await sql`INSERT INTO garage_records(garage_id) VALUES(${garage.id}),(${south.id}),(${foreign.id})`;
+  const password=randomToken(),encoded=await hashPassword(password),cookies={},users={};
+  const call=async(fn,b,cookie='',query='')=>{const response=await fn(new Request(origin+'/.netlify/functions/test'+query,{method:b?'POST':'GET',headers:{origin,'content-type':'application/json',cookie},body:b?JSON.stringify(b):undefined}),ctx);return {status:response.status,data:await response.json(),cookie:response.headers.get('set-cookie')?.split(';')[0]};};
+  for(const role of roleKeys){const [u]=await sql`INSERT INTO users(email,name,role,organisation_id,garage_id,password_hash) VALUES(${role+'@test.invalid'},${role},${role},${role==='platform_admin'?null:org.id},${['platform_admin','organisation_admin'].includes(role)?null:garage.id},${encoded}) RETURNING id`;users[role]=u.id;const login=await call(auth,{action:'login',identifier:role+'@test.invalid',password});assert.equal(login.status,200,JSON.stringify(login.data));cookies[role]=login.cookie;assert.equal(login.data.user.password_hash,undefined);}
+  // All cross-tenant reads denied except the platform owner. Managers/supervisors/staff cannot leave their garage.
+  for(const role of roleKeys){assert.equal((await call(workspace,null,cookies[role],'?garage='+foreign.id)).status,role==='platform_admin'?200:403);assert.equal((await call(workspace,null,cookies[role],'?garage='+south.id)).status,['platform_admin','organisation_admin'].includes(role)?200:403);}
+  for(const role of ['supervisor','mechanic'])assert.equal((await call(admin,null,cookies[role])).status,403);
+  const labels={platform_admin:'Platform Owner',organisation_admin:'Operations Admin',garage_manager:'Depot Manager',supervisor:'Foreperson',mechanic:'Technician'};
+  assert.equal((await call(admin,{action:'role_names',organisation_id:org.id,names:labels},cookies.garage_manager)).status,403);
+  assert.equal((await call(admin,{action:'role_names',organisation_id:otherOrg.id,names:labels},cookies.organisation_admin)).status,403);
+  assert.equal((await call(admin,{action:'role_names',organisation_id:org.id,names:labels},cookies.organisation_admin)).status,200);
+  assert.deepEqual((await call(workspace,null,cookies.mechanic)).data.user.role_names,labels);
+  // Higher roles cannot be obtained by self-assignment or by posting another garage.
+  for(const role of ['platform_admin','organisation_admin','garage_manager'])assert.equal((await call(admin,{action:'create_user',name:'Escalation',email:'escalate@test.invalid',role,organisation_id:org.id,garage_id:garage.id},cookies.garage_manager)).status,403);
+  assert.equal((await call(admin,{action:'create_user',name:'Foreign staff',email:'f@test.invalid',role:'mechanic',organisation_id:org.id,garage_id:south.id},cookies.garage_manager)).status,403);
+  const invited=await call(admin,{action:'create_user',name:'No email staff',employee_id:'ID-1',role:'mechanic',organisation_id:org.id,garage_id:garage.id},cookies.garage_manager);assert.equal(invited.status,200);assert.match(invited.data.link,/#activate\//);
+  const activated=await call(auth,{action:'activate',token:invited.data.link.split('/').at(-1),password});assert.equal(activated.status,200);
+  assert.equal((await call(auth,{action:'login',identifier:'id-1',organisation_code:org.login_code,password})).status,200);
+  const code=await call(admin,{action:'registration_code',garage_id:garage.id,operation:'rotate'},cookies.garage_manager);assert.equal(code.status,200);
+  assert.equal((await call(admin,{action:'registration_code',garage_id:south.id,operation:'rotate'},cookies.garage_manager)).status,403);
+  const signup={action:'register',code:code.data.code,name:'New employee',employee_id:'EMP-200',password,role:'platform_admin',organisation_id:otherOrg.id,garage_id:foreign.id};
+  assert.equal((await call(auth,signup)).status,201);
+  assert.equal((await call(auth,signup)).status,409);
+  let login=await call(auth,{action:'login',identifier:'EMP-200',organisation_code:org.login_code,password});assert.equal(login.status,200);assert.equal(login.data.user.role,'mechanic');assert.equal(login.data.user.garage_id,garage.id);const staffCookie=login.cookie,newId=login.data.user.id;
+  const publicAdmin=await call(admin,null,cookies.garage_manager);assert.doesNotMatch(JSON.stringify(publicAdmin.data),/code_hash|password_hash|credential_version|token_hash/);
+  assert.equal((await call(admin,{action:'registration_code',garage_id:garage.id,operation:'disable'},cookies.garage_manager)).status,200);
+  assert.equal((await call(auth,{...signup,employee_id:'EMP-201'})).status,409);
+  assert.equal((await call(auth,{action:'login',identifier:'EMP-200',password})).status,200);
+  // Duplicate employee IDs may exist in different organisations; the organisation code resolves them.
+  await sql`INSERT INTO users(name,employee_id,role,organisation_id,garage_id,password_hash) VALUES('Other employee','EMP-200','mechanic',${otherOrg.id},${foreign.id},${encoded})`;
+  assert.equal((await call(auth,{action:'login',identifier:'EMP-200',password})).status,401);
+  assert.equal((await call(auth,{action:'login',identifier:'EMP-200',organisation_code:org.login_code,password})).status,200);
+  assert.equal((await call(admin,{action:'set_role',user_id:newId,role:'supervisor'},cookies.garage_manager)).status,200);
+  assert.equal((await call(workspace,null,staffCookie)).status,401);
+  login=await call(auth,{action:'login',identifier:'EMP-200',organisation_code:org.login_code,password});assert.equal(login.data.user.role,'supervisor');
+  assert.equal((await call(admin,{action:'set_role',user_id:users.garage_manager,role:'mechanic'},cookies.garage_manager)).status,403);
+  assert.equal((await call(admin,{action:'set_role',user_id:newId,role:'organisation_admin'},cookies.garage_manager)).status,403);
+  let version=0;
+  const write=async(action,values={},extra={},role='garage_manager')=>{const r=await call(workspace,{action,garage:garage.id,version,values,...extra},cookies[role]);if(r.status===200)version=r.data.version;return r;};
+  assert.equal((await write('vehicle',{id:'BUS-1',model:'Demo bus'})).status,200);
+  for(const role of ['supervisor','mechanic']){for(const action of ['vehicle','vehicle_edit','schedule','template_edit','inspection_manage'])assert.equal((await write(action,{operation:'delete'}, {},role)).status,403,role+':'+action);}
+  assert.equal((await write('template_edit',{operation:'question'}, {},'garage_manager')).status,403);
+  const fault=await write('record',{vehicle:'BUS-1',title:'Broken light',description:'Lens cracked'},{kind:'faults'},'mechanic');assert.equal(fault.status,200);const faultId=fault.data.result.id,actionId=fault.data.state.actions[0].id;
+  assert.equal((await write('close_record',{notes:'Evidence checked'},{kind:'faults',id:faultId},'mechanic')).status,403);
+  assert.equal((await write('close_record',{notes:'Evidence checked'},{kind:'faults',id:faultId},'supervisor')).status,400);
+  assert.equal((await write('action',{evidence:'Replaced light, tested operation'},{id:actionId},'mechanic')).status,200);
+  assert.equal((await write('close_record',{notes:'Checked repair and tested light'},{kind:'actions',id:actionId},'supervisor')).status,200);
+  const closed=await write('close_record',{notes:'Verified repaired light'},{kind:'faults',id:faultId},'supervisor');assert.equal(closed.status,200);assert.match(closed.data.state.faults[0].closedBy,/supervisor/);assert.notEqual(closed.data.state.vehicles[0].status,'Released');
+  const report=await write('record',{title:'Garage incident',description:'Spill made safe'},{kind:'reports'},'mechanic');assert.equal(report.status,200);const rid=report.data.result.id,aid=report.data.state.actions[0].id;
+  await write('action',{evidence:'Reviewed spill response'},{id:aid},'mechanic');await write('close_record',{notes:'Area safe and dry'},{kind:'actions',id:aid},'supervisor');assert.equal((await write('close_record',{notes:'Confirmed incident response'},{kind:'reports',id:rid},'supervisor')).status,200);
+  const inspection=await write('start',{vehicle:'BUS-1'}, {},'mechanic');assert.equal(inspection.status,200);const iid=inspection.data.result.id;
+  assert.equal((await write('inspection_manage',{operation:'complete',reason:'Review complete',date:'2026-10-15'},{id:iid},'mechanic')).status,403);
+  assert.equal((await write('inspection_manage',{operation:'complete',reason:'Review complete',date:'2026-10-15'},{id:iid},'supervisor')).status,400); // Not submitted, no bypass.
+  // Use synthetic approved template to exercise positive sign-off, keeping real PM3 source conflict untouched.
+  const [row]=await sql`SELECT data FROM garage_records WHERE garage_id=${garage.id}`;const ins=row.data.inspections.find(i=>i.id===iid);ins.status='Awaiting review';ins.created='2026-10-15T00:00:00.000Z';ins.templateSnapshot.tasks=[{id:'approved',text:'Approved check',section:'Test'}];ins.answers={approved:{result:'OK'}};
+  await sql`UPDATE garage_records SET data=${JSON.stringify(row.data)}::jsonb WHERE garage_id=${garage.id}`;
+  assert.equal((await write('inspection_manage',{operation:'complete',reason:'Review complete',date:'2026-10-15'},{id:iid},'supervisor')).status,200);
+  const cbody={kind:'sops',organisation_id:org.id,version:0,values:{title:'Safe handover',steps:'Check area\nHand over',instructions:'Full approved handover procedure.'}};
+  for(const role of ['garage_manager','supervisor','mechanic'])assert.equal((await call(content,cbody,cookies[role])).status,403);
+  assert.equal((await call(content,{...cbody,organisation_id:otherOrg.id},cookies.organisation_admin)).status,403);
+  assert.equal((await call(content,cbody,cookies.organisation_admin)).status,200);
+  assert.equal((await call(content,cbody,cookies.organisation_admin)).status,409);
+  assert.equal((await call(workspace,null,cookies.organisation_admin,'?garage='+south.id)).data.content.sops.length,1);
+  const created=await call(content,{...cbody,kind:'checklists',version:1,values:{title:'Daily workshop',steps:'Area clear\nTools put away',instructions:'Inspect the area and equipment.'}},cookies.organisation_admin);assert.equal(created.status,200);
+  const run=await write('checklist_start',{template:created.data.id,vehicle:'BUS-1'},{},'mechanic');assert.equal(run.status,200);const cid=run.data.result.id;
+  assert.equal((await write('checklist_answer',{item:0,result:'Fault',notes:'Obstruction found'},{id:cid},'mechanic')).status,200);
+  const repeated=await write('checklist_answer',{item:0,result:'Fault',notes:'Obstruction details'},{id:cid},'mechanic');assert.equal(repeated.data.state.faults.length,2);
+  assert.equal((await write('checklist_submit',{}, {id:cid},'mechanic')).status,400);
+  await write('checklist_answer',{item:1,result:'OK'},{id:cid},'mechanic');await write('checklist_submit',{}, {id:cid},'mechanic');
+  assert.equal((await write('checklist_answer',{item:0,result:'OK'},{id:cid},'mechanic')).status,400);
+  assert.equal((await write('checklist_signoff',{notes:'Checked all records'},{id:cid},'mechanic')).status,403);
+  assert.equal((await write('checklist_return',{notes:'Check the obstruction again'},{id:cid},'supervisor')).status,200);
+  await write('checklist_answer',{item:0,result:'OK'},{id:cid},'mechanic');await write('checklist_submit',{}, {id:cid},'mechanic');assert.equal((await write('checklist_signoff',{notes:'Reviewed both checks'},{id:cid},'supervisor')).status,200);
+  // Demo users are private, password-protected accounts; only the platform admin creates them.
+  assert.equal((await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.organisation_admin)).status,403);
+  const demo=await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.platform_admin);assert.equal(demo.status,200);assert.equal(demo.data.credentials.length,5);
+  for(const d of demo.data.credentials){const r=await call(auth,{action:'login',identifier:d.email,password:d.password});assert.equal(r.status,200);assert.equal(r.data.user.role,d.role);}
+  assert.equal((await call(admin,{action:'organisation_status',organisation_id:org.id,active:false,confirm:org.name},cookies.organisation_admin)).status,403);
+  assert.equal((await call(admin,{action:'organisation_status',organisation_id:org.id,active:false,confirm:org.name},cookies.platform_admin)).status,200);
+  assert.equal((await call(workspace,null,cookies.mechanic)).status,401);
+  assert.equal((await call(auth,{action:'login',identifier:'mechanic@test.invalid',password})).status,401);
+  assert.equal((await call(admin,{action:'organisation_status',organisation_id:org.id,active:true,confirm:org.name},cookies.platform_admin)).status,200);
+  assert.equal((await call(auth,{action:'login',identifier:'mechanic@test.invalid',password})).status,200);
+ }finally{await (await import('../server/runtime.mjs')).closeDatabase();await db.pool.end();await local.stop();}
+});

@@ -1,3 +1,4 @@
+import {reviewer} from './roles.js';
 import {esc} from './api.js';
 import {manager} from './admin-ui.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
@@ -19,14 +20,14 @@ const unavailable=()=>frame('Check unavailable','<p class="tap-caption">Choose a
 function paging(l,total){const pages=Math.max(1,Math.ceil(total/6));l.page=Math.max(0,Math.min(l.page,pages-1));return pages>1?`<button type="button" class="tap-small" data-checks-page="-1" ${l.page===0?'disabled':''}>Previous</button><span>${l.page+1} / ${pages}</span><button type="button" class="tap-small" data-checks-page="1" ${l.page===pages-1?'disabled':''}>Next</button>`:'';}
 const search=(l,placeholder)=>`<label class="sr-only" for="checks-search">${placeholder}</label><input id="checks-search" class="tap-search" type="search" value="${esc(l.query)}" placeholder="${placeholder}" autocomplete="off">`;
 export function isMyInspection(i,me){
- const email=String(me?.email||'').trim().toLowerCase();
+ const email=String(me?.email||me?.employee_id||me?.id||'').trim().toLowerCase();
  if(!email)return false;
  const matches=worker=>String(worker||'').trim().toLowerCase().endsWith(' ('+email+')');
  return matches(i.craftworker)||Object.values(i.answers||{}).some(a=>matches(a.worker));
 }
 function busPicker(c){
  const l=listFor(c),buses=c.state.vehicles.filter(v=>v.garage===c.garage&&[v.id,v.name,v.registration,v.model].join(' ').toLowerCase().includes(l.query.toLowerCase())),footer=paging(l,buses.length);
- return frame('Choose your bus',search(l,'Find bus number, name or registration')+`<div class="tap-grid buses">${buses.slice(l.page*6,l.page*6+6).map(v=>{
+ return frame('Choose your bus',`<div class="toolbar">${go('checklists','Garage checklists')}${reviewer(c.me)?go('reviews','Review & sign off'):''}</div>`+search(l,'Find bus number, name or registration')+`<div class="tap-grid buses">${buses.slice(l.page*6,l.page*6+6).map(v=>{
   const draft=scoped(c).find(i=>i.vehicle===v.id&&i.status==='In progress'),s=scheduleStatus(c.state,c.garage,v.id);
   return tile('checks/'+encodeURIComponent(v.id),v.name||v.id,[v.name?v.id:'',v.registration].filter(Boolean).join(' · ')||v.model,draft?badge('Check in progress'):s.due?badge(s.status):'');
  }).join('')}</div>`+(!buses.length?'<p class="tap-caption">No matching buses in this garage.</p>':''),footer);
@@ -43,7 +44,7 @@ function records(c,v){
 function record(c,id,section){
  const i=scoped(c).find(i=>i.id===id);if(!i)return unavailable();
  const tasks=tasksFor(i),sections=[...new Set(tasks.map(t=>t.section))],root='inspection-record/'+encodeURIComponent(id),back=go('checks/'+encodeURIComponent(i.vehicle)+'/history','← Inspection history');
- if(section===undefined)return frame(i.vehicle+' · Inspection record',`<article class="checks-record-summary"><div class="row">${badge(i.status)}<span>${date(i.created)}</span></div><p>${esc(i.craftworker)}</p><p>${Object.keys(i.answers).length} answers saved · Template version ${i.templateSnapshot?.version||1}</p>${i.notes?`<p class="record-note">${esc(i.notes)}</p>`:''}<p class="tap-caption">Read-only inspection history</p></article><div class="tap-grid buses">${sections.map((s,n)=>tile(root+'/'+n,s,tasks.filter(t=>t.section===s&&i.answers[t.id]).length+' answers saved')).join('')}</div>`,back+(manager(c.me)?go('inspection-admin/'+id,'Manage inspection'):''));
+ if(section===undefined)return frame(i.vehicle+' · Inspection record',`<article class="checks-record-summary"><div class="row">${badge(i.status)}<span>${date(i.created)}</span></div><p>${esc(i.craftworker)}</p><p>${Object.keys(i.answers).length} answers saved · Template version ${i.templateSnapshot?.version||1}</p>${i.notes?`<p class="record-note">${esc(i.notes)}</p>`:''}<p class="tap-caption">Read-only inspection history</p></article><div class="tap-grid buses">${sections.map((s,n)=>tile(root+'/'+n,s,tasks.filter(t=>t.section===s&&i.answers[t.id]).length+' answers saved')).join('')}</div>`,back+(manager(c.me)?go('inspection-admin/'+id,'Manage inspection'):'')+(reviewer(c.me)&&i.status==='Awaiting review'?go('reviews/inspections/'+id,'Review & sign off'):''));
  const n=Number(section);if(!Number.isInteger(n)||n<0||!sections[n])return unavailable();
  return frame(i.vehicle+' · '+sections[n],`<div class="checks-saved-answers">${tasks.filter(t=>t.section===sections[n]).map(t=>{const a=i.answers[t.id];return `<article class="checks-record-summary"><h2>${esc(t.question||t.text)}</h2>${badge(t.blocked?'Blocked · technical review':a?.result||'Not recorded')}${a?`<p class="record-note">${esc(a.notes)}</p>${taskReadings(t).map((r,j)=>`<p>${esc(r[0])}: <strong>${esc(a.readings?.[j]||'Not recorded')}</strong>${r.length===4?' '+esc(r[1]):''}</p>`).join('')}<p class="help">${esc(a.worker)} · ${date(a.updated)}</p>`:''}<details><summary>Full instruction</summary><p>${esc(t.text)}</p><p>Source page ${t.page} · item ${esc(t.number)}</p></details></article>`;}).join('')}</div>`,go(root,'← Sections')+(n<sections.length-1?go(root+'/'+(n+1),'Next section') :''));
 }

@@ -1,6 +1,9 @@
+import {closeRecord} from '../../src/reviews.js';
+import {checklistCommand} from '../../src/content-model.js';
+import {workerName} from '../../src/roles.js';
 import {validateAttachments} from '../../server/photos.mjs';
 import {db,actor,body,json,garageFor,endpoint,fail,safeUser} from '../../server/runtime.mjs';
-import {canManage} from '../../server/security.mjs';
+import {canManage,canAuthor,canReview} from '../../server/security.mjs';
 import {addRecord,submitAction,savedRecordRequest} from '../../src/model.js';
 import {startInspection,saveAnswer,submitInspection,saveVehicle} from '../../src/inspections.js';
 import {editTemplate} from '../../src/templates.js';
@@ -9,25 +12,27 @@ import {saveSchedule} from '../../src/scheduling.js';
 export default endpoint(async(req)=>{
  const u=await actor(req),sql=db();
  if(req.method==='GET'){
-  const garages=await sql`SELECT g.*,o.name AS organisation_name FROM garages g JOIN organisations o ON o.id=g.organisation_id WHERE ${u.role==='platform_admin'} OR (g.organisation_id=${u.organisation_id} AND (${u.role==='organisation_admin'} OR g.id=${u.garage_id})) ORDER BY o.name,g.name`;
+  const garages=await sql`SELECT g.*,o.name AS organisation_name FROM garages g JOIN organisations o ON o.id=g.organisation_id WHERE o.active AND (${u.role==='platform_admin'} OR (g.organisation_id=${u.organisation_id} AND (${u.role==='organisation_admin'} OR g.id=${u.garage_id}))) ORDER BY o.name,g.name`;
   const requested=new URL(req.url).searchParams.get('garage');const garage=requested||garages[0]?.id;
   if(!garage)return json({user:safeUser(u),garages,state:null,version:0});
-  await garageFor(u,garage);const [record]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${garage}`;
-  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser(u),garages,state:record.data,version:record.version,garage});
+  const g=await garageFor(u,garage);const [content]=await sql`SELECT data,version FROM organisation_content WHERE organisation_id=${g.organisation_id}`;const [org]=await sql`SELECT role_names,login_code FROM organisations WHERE id=${g.organisation_id}`;const [record]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${garage}`;
+  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,state:record.data,version:record.version,garage,content:content?.data||{sops:[],checklists:[]},contentVersion:content?.version||0,organisation:g.organisation_id});
  }
- const b=await body(req);await garageFor(u,b.garage);
+ const b=await body(req);const g=await garageFor(u,b.garage);
  if(!Number.isInteger(b.version)||b.version<0)fail('Reload the garage before saving.',409);
  const [r]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${b.garage}`;
  if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:r.data,version:r.version,result:prior});}
  if(!r||r.version!==b.version)fail('Another person saved changes. Refresh the garage and retry your entry.',409);
  const state=r.data;let result=null;const v=b.values||{};
  const photos=v.photos===undefined?[]:await validateAttachments(v.photos,b.garage,u);
- const worker=u.name+' ('+u.email+')';
+ const worker=workerName(u);
  try{
  switch(b.action){
+  case 'close_record':if(!canReview(u))fail('Supervisor access required.',403);result=closeRecord(state,b.garage,b.kind,b.id,v,worker);break;
+  case 'checklist_start':case 'checklist_answer':case 'checklist_submit':case 'checklist_signoff':case 'checklist_return':{if(['checklist_signoff','checklist_return'].includes(b.action)&&!canReview(u))fail('Supervisor access required.',403);const [content]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${g.organisation_id}`;result=checklistCommand(state,b.garage,b.action,v,b.id,content?.data||{},worker);break;}
   case 'vehicle_edit':if(!canManage(u))fail('Administrator access required.',403);result=editVehicle(state,b.garage,b.id,v,worker);break;
-  case 'inspection_manage':if(!canManage(u))fail('Administrator access required.',403);result=manageInspection(state,b.garage,b.id,v,worker);break;
-  case 'template_edit':if(!canManage(u))fail('Administrator access required.',403);result=editTemplate(state,v,worker);break;
+  case 'inspection_manage':if(!(v.operation==='complete'?canReview(u):canManage(u)))fail('Administrator access required.',403);result=manageInspection(state,b.garage,b.id,v,worker);break;
+  case 'template_edit':if(!canAuthor(u))fail('Administrator access required.',403);result=editTemplate(state,v,worker);break;
   case 'schedule':if(!canManage(u))fail('Administrator access required.',403);result=saveSchedule(state,b.garage,v,worker);break;
   case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);result=saveVehicle(state,b.garage,v);break;
   case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos,requestId:v.requestId||null});break;

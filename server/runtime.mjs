@@ -1,3 +1,4 @@
+import pg from 'pg';
 import {neon} from '@neondatabase/serverless';
 import {getDatabase} from '@netlify/database';
 import {AsyncLocalStorage} from 'node:async_hooks';
@@ -7,9 +8,23 @@ const requests=new AsyncLocalStorage();
 const deployContext=()=>requests.getStore()?.context?.deploy?.context||env('CONTEXT');
 const isPreview=()=>!!deployContext()&&deployContext()!=='production';
 export const databaseProvider=()=>env('FLEETTAP_DATABASE_PROVIDER')==='netlify'||isPreview()?'netlify':'neon';
-let managed;
-export const db=()=>databaseProvider()==='netlify'?(managed??=getDatabase(env('NETLIFY_DB_URL')?{connectionString:env('NETLIFY_DB_URL')}:undefined)).sql:neon(env('FLEETTAP_DATABASE_URL'));
-export async function closeDatabase(){if(managed){await managed.pool.end();managed=undefined;}}
+let managed,legacyPool;
+export const db=()=>requests.getStore()?.transactionSQL||(databaseProvider()==='netlify'?(managed??=getDatabase(env('NETLIFY_DB_URL')?{connectionString:env('NETLIFY_DB_URL')}:undefined)).sql:neon(env('FLEETTAP_DATABASE_URL')));
+export async function closeDatabase(){if(legacyPool){await legacyPool.end();legacyPool=undefined;}if(managed){await managed.pool.end();managed=undefined;}}
+// Serialise account-management commands with revocation and role changes.
+// Values stay bound parameters on a single connection throughout the transaction.
+export async function withActorTransaction(u,run){
+ db();const pool=databaseProvider()==='netlify'?managed.pool:(legacyPool??=new pg.Pool({connectionString:env('FLEETTAP_DATABASE_URL')}));
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  const {rows}=await client.query('SELECT id FROM users WHERE id=$1 AND active AND credential_version=$2 FOR SHARE',[u.id,u.credential_version]);
+  if(!rows.length)fail('Your access changed. Please sign in again.',401);
+  const transactionSQL=async(strings,...values)=>(await client.query(strings.reduce((text,s,i)=>text+(i?'$'+i:'')+s,''),values)).rows;
+  const result=await requests.run({...requests.getStore(),transactionSQL},run);
+  await client.query('COMMIT');return result;
+ }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}
 // Build-only URL/CONTEXT variables are absent from hosted Functions. Use the
 // trusted deployment context and this request's origin for isolated previews.
 // AsyncLocalStorage keeps concurrent requests from sharing origin metadata.
@@ -20,8 +35,8 @@ export function fail(message,status=400){throw Object.assign(new Error(message),
 export function json(data,status=200,headers={}){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',...headers}});}
 export function setCookie(token,seconds=28800){return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${seconds}`;}
 export async function body(req){if(req.method!=='POST')fail('Method not allowed',405);if(!appOrigin()||req.headers.get('origin')!==appOrigin())fail('Request origin not allowed',403);if(!req.headers.get('content-type')?.startsWith('application/json'))fail('JSON required',415);const raw=await req.text();if(raw.length>64000)fail('Request too large',413);try{return JSON.parse(raw);}catch{fail('Invalid JSON');}}
-export async function actor(req){const token=cookie(req);if(!token)fail('Please sign in.',401);const [u]=await db()`SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=${hash(token)} AND s.expires_at>now() AND u.active AND u.credential_version=s.credential_version`;if(!u)fail('Please sign in.',401);return u;}
-export const safeUser=u=>({id:u.id,email:u.email,name:u.name,role:u.role,organisation_id:u.organisation_id,garage_id:u.garage_id});
-export async function garageFor(u,id){if(!/^[a-f0-9-]{36}$/.test(id||''))fail('Choose a garage.');const [g]=await db()`SELECT * FROM garages WHERE id=${id}`;if(!g||!canAccessGarage(u,g))fail('Garage unavailable',403);return g;}
+export async function actor(req){const token=cookie(req);if(!token)fail('Please sign in.',401);const [u]=await db()`SELECT u.*,o.role_names,o.login_code FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN organisations o ON o.id=u.organisation_id WHERE s.token_hash=${hash(token)} AND s.expires_at>now() AND u.active AND u.credential_version=s.credential_version AND (u.organisation_id IS NULL OR o.active)`;if(!u)fail('Please sign in.',401);return u;}
+export const safeUser=u=>({id:u.id,email:u.email,name:u.name,role:u.role,organisation_id:u.organisation_id,garage_id:u.garage_id,employee_id:u.employee_id,role_names:u.role_names||{},organisation_code:u.login_code,demo:!!u.demo});
+export async function garageFor(u,id){if(!/^[a-f0-9-]{36}$/.test(id||''))fail('Choose a garage.');const [g]=await db()`SELECT g.* FROM garages g JOIN organisations o ON o.id=g.organisation_id WHERE g.id=${id} AND o.active`;if(!g||!canAccessGarage(u,g))fail('Garage unavailable',403);return g;}
 export async function rateLimit(key,max){const [r]=await db()`INSERT INTO auth_limits(key,attempts,expires_at) VALUES(${hash(key)},1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN auth_limits.expires_at<now() THEN 1 ELSE auth_limits.attempts+1 END, expires_at=CASE WHEN auth_limits.expires_at<now() THEN now()+interval '15 minutes' ELSE auth_limits.expires_at END RETURNING attempts`;if(r.attempts>max)fail('Too many attempts. Try again in 15 minutes.',429);}
 export function endpoint(handler){return async(req,context)=>requests.run({context,origin:new URL(req.url).origin},async()=>{try{if(env('FLEETTAP_READ_ONLY')==='true'&&req.method!=='GET')return json({error:'FleetTap is briefly read-only while the database is being moved. Please retry shortly.'},503);if(isPreview()&&!env('NETLIFY_DB_URL'))return json({error:'This deployment needs an isolated database.'},503);return await handler(req,context);}catch(e){const status=e.status||500;if(status===500)console.error('FleetTap request failed',e.code||e.name);return json({error:status===500?'Unable to complete this request. Please try again.':e.message},status);}});}

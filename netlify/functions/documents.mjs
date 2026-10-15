@@ -1,5 +1,5 @@
 import {db,actor,garageFor,endpoint,fail,json,appOrigin,rateLimit} from '../../server/runtime.mjs';
-import {canManage} from '../../server/security.mjs';
+import {canManage,canAuthor} from '../../server/security.mjs';
 import {templateFor} from '../../src/templates.js';
 
 // Original documents are private database objects, never files in the public web build/repository.
@@ -12,6 +12,7 @@ export default endpoint(async req=>{
   if(!doc)fail('Document unavailable.',404);
   return new Response(Buffer.from(doc.content,'base64'),{headers:{'Content-Type':'application/pdf','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline; filename="inspection-source.pdf"','Content-Security-Policy':"sandbox; default-src 'none'"}});
  }
+ if(!canAuthor(u))fail('Organisation Admin access required.',403);
  if(req.method!=='POST')fail('Method not allowed.',405);
  if(!appOrigin()||req.headers.get('origin')!==appOrigin())fail('Request origin not allowed.',403);
  await rateLimit('document:'+u.id,20);
