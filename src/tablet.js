@@ -1,3 +1,4 @@
+import {checksFlowView} from './checks-flow.js';
 import {tasksFor,isPM3} from './templates.js';
 import {manager} from './admin-ui.js';
 import {photoPicker,uploadPhotos} from './photos.js';
@@ -24,21 +25,13 @@ const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[k]||
 const tile=(attrs,label,type='check',sub='')=>`<button type="button" class="tap-tile" ${attrs}>${icon(type)}<strong>${label}</strong>${sub?`<small>${sub}</small>`:''}</button>`;
 const route=(page,label,type='check',sub='')=>tile(`data-go="${esc(page)}"`,label,type,sub);
 const routeFor=(id,n,i)=>n>=availableFor(i).length?'inspection/'+id+'/review':'inspection/'+id+'/item/'+n;
-const drafts=new Map();let busQuery='',busPage=0,busy=false,host;
+const drafts=new Map();let busy=false,host;
 export function draftFor(i,t){const key=i.id+':'+t.id;if(!drafts.has(key)){const a=i.answers[t.id];drafts.set(key,{result:a?.result||'',readings:[...(a?.readings||[])],notes:a?.notes||'',step:'question',field:0,dirty:false,ack:false,error:'',base:a?.updated||null});}return drafts.get(key);}
+export const resumeIndex=i=>{const n=availableFor(i).findIndex(t=>drafts.get(i.id+':'+t.id)?.dirty);return n<0?firstPending(i):n;};
 export function resultStep(task,result){if(result==='Not due')return 'history';if(result!=='OK')return 'reason';return taskReadings(task).length?'reading':'save';}
 function frame(kicker,title,content,footer='',extra=''){return `<section class="tap-screen ${extra}"><div class="tap-heading"><p>${kicker}</p><h1 tabindex="-1">${title}</h1></div><div class="tap-content">${content}</div>${footer?`<footer class="tap-footer">${footer}</footer>`:''}</section>`;}
 const small=(attrs,label)=>`<button type="button" class="tap-small" ${attrs}>${label}</button>`;
 const safety=t=>t.section==='Engine and Transmission'?'<p class="tap-warning">High-pressure fuel: never open pipes with the engine running or cranking. Follow SI 288. Clean engine before servicing.</p>':'';
-function busPicker(c){
- const buses=c.state.vehicles.filter(v=>v.garage===c.garage&&[v.id,v.registration,v.model].join(' ').toLowerCase().includes(busQuery.toLowerCase()));
- const pages=Math.max(1,Math.ceil(buses.length/6));busPage=Math.min(busPage,pages-1);
- return frame('FleetTap','Choose your bus',`<label class="sr-only" for="tap-search">Search buses</label><input id="tap-search" class="tap-search" type="search" value="${esc(busQuery)}" placeholder="Find bus number" autocomplete="off"><div class="tap-grid buses">${buses.slice(busPage*6,busPage*6+6).map(v=>{const i=c.state.inspections.find(i=>i.vehicle===v.id&&isPM3(i)&&!i.deletedAt&&i.status==='In progress');return route('vehicle/'+v.id,esc(v.id),'bus',i?'Check in progress':esc(v.registration||'Choose bus'));}).join('')||'<p>No matching buses.</p>'}</div>`,`${small('data-bus-page="-1" '+(busPage===0?'disabled':''),'Previous')}<span>${busPage+1} / ${pages}</span>${small('data-bus-page="1" '+(busPage===pages-1?'disabled':''),'Next')}`);
-}
-function busJobs(c,id){const v=c.state.vehicles.find(v=>v.id===id&&v.garage===c.garage);if(!v)return frame('Fleet','Bus unavailable',route('fleet','Choose bus','bus'));
- const i=c.state.inspections.find(i=>i.vehicle===id&&isPM3(i)&&!i.deletedAt&&i.status==='In progress');
- return frame(esc(v.id),'What are you doing?',`<div class="tap-grid jobs">${tile(`data-work-start="${esc(id)}"`,i?'Continue check':'Start check','check','PM3 · demonstration')}${route('defect/'+id,'Report fault','fault')}${route('actions','My work','list')}</div><p class="tap-caption">${esc(v.status)}</p>`,`${small('data-go="fleet"','Change bus')}${small(`data-go="history/${esc(id)}"`,'Bus history')}`);
-}
 const reasonOptions={Defect:['Damaged','Loose','Leaking','Not working','Outside tolerance','Other'], 'Not completed':['Awaiting parts','Equipment unavailable','Access blocked','Needs specialist','Time / shift handover','Other']};
 function fieldView(t,d){const r=taskReadings(t)[d.field],value=d.readings[d.field]??'',choice=r[1]==='Yes/No'?['Yes','No']:r[1]==='choice'?['Remove clip (leaving one clip), refit pipe','Remove last clip, refit pipe','No clip present, fit new pipe']:null;
  if(choice)return `<div class="tap-grid choices">${choice.map(v=>tile(`data-reading-choice="${esc(v)}"`,esc(v),v==='No'?'fault':'check')).join('')}</div>`;
@@ -47,9 +40,9 @@ function fieldView(t,d){const r=taskReadings(t)[d.field],value=d.readings[d.fiel
  return `<form id="tap-text-form"><label>${esc(r[0])}<input id="tap-reading" value="${esc(value)}" maxlength="300" autocomplete="off" required></label>${quick.map(v=>small(`data-reading-choice="${esc(v)}"`,esc(v))).join('')}<button class="tap-primary">Continue</button></form>`;
 }
 function overview(c,i,page=0){const available=availableFor(i),sections=[...new Set(available.map(t=>t.section))];const pageCount=Math.ceil(sections.length/6),p=Math.min(Math.max(0,page||0),pageCount-1);return frame(esc(i.vehicle),'Choose a section',`<div class="tap-grid buses">${sections.slice(p*6,p*6+6).map(s=>{const ts=available.filter(t=>t.section===s),pending=ts.find(t=>!i.answers[t.id])||ts[0];return route(routeFor(i.id,available.indexOf(pending),i),esc(s),'list',`${ts.filter(t=>i.answers[t.id]).length} / ${ts.length} saved`);}).join('')}</div>`,`${small(`data-go="inspection/${i.id}/sections/${p-1}" ${p===0?'disabled':''}`,'Previous')}<span>${p+1} / ${pageCount}</span>${small(`data-go="inspection/${i.id}/sections/${p+1}" ${p===pageCount-1?'disabled':''}`,'Next')}`);}
-function review(c,i){const available=availableFor(i);const pending=firstPending(i),done=Object.keys(i.answers).length,locked=i.status!=='In progress';return frame(esc(i.vehicle),locked?'Sent for review':pending<available.length?'Keep going?':'Ready for review',`<div class="tap-summary"><strong>${done} / ${available.length}</strong><p>checks saved</p></div><p class="tap-warning">${tasksFor(i).some(t=>t.blocked)?'Regeneration remains blocked. ':''}Submitting a check does not release the bus for service.</p><div class="tap-grid jobs">${!locked&&pending<available.length?route(routeFor(i.id,pending,i),'Continue check','check'):''}${!locked&&pending===available.length?tile(`data-work-submit="${i.id}"`,'Send for review','check'):''}${route('inspection/'+i.id+'/sections','View checks','list')}${route('vehicle/'+i.vehicle,'Pause & leave','pause')}${c.me&&manager(c.me)?route('inspection-admin/'+i.id,'Manage inspection','edit'):''}</div>`);}
+function review(c,i){const available=availableFor(i);const pending=resumeIndex(i),done=Object.keys(i.answers).length,locked=i.status!=='In progress';return frame(esc(i.vehicle),locked?'Sent for review':pending<available.length?'Keep going?':'Ready for review',`<div class="tap-summary"><strong>${done} / ${available.length}</strong><p>checks saved</p></div><p class="tap-warning">${tasksFor(i).some(t=>t.blocked)?'Regeneration remains blocked. ':''}Submitting a check does not release the bus for service.</p><div class="tap-grid jobs">${!locked&&pending<available.length?route(routeFor(i.id,pending,i),'Continue check','check'):''}${!locked&&pending===available.length?tile(`data-work-submit="${i.id}"`,'Send for review','check'):''}${route('inspection/'+i.id+'/sections','View checks','list')}${route('checks/'+encodeURIComponent(i.vehicle),'Pause & leave','pause')}${c.me&&manager(c.me)?route('inspection-admin/'+i.id,'Manage inspection','edit'):''}</div>`);}
 export const isTabletSaving=()=>busy;
-export function tabletView(c){if(busy)return frame('FleetTap','Saving…','<p class="tap-saving" role="status">Please wait</p>');const p=c.page.split('/');if(['fleet','start','checks'].includes(p[0])&&!p[1])return busPicker(c);if(p[0]==='vehicle'||p[0]==='start')return busJobs(c,p[1]);
+export function tabletView(c){if(busy)return frame('FleetTap','Saving…','<p class="tap-saving" role="status">Please wait</p>');const p=c.page.split('/');if(['fleet','start','checks','vehicle'].includes(p[0]))return checksFlowView({...c,page:'checks'+(p[1]?'/'+p[1]:'')});
  const i=c.state.inspections.find(i=>i.id===p[1]&&i.garage===c.garage&&isPM3(i)&&!i.deletedAt);if(!i)return frame('Checks','Check unavailable',route('checks','Choose a bus','bus'));
  const available=availableFor(i);
  if(p[2]==='sections')return overview(c,i,Number(p[3]));
@@ -72,14 +65,13 @@ export function tabletView(c){if(busy)return frame('FleetTap','Saving…','<p cl
  return frame(label,esc(title),content,footer);
 }
 export function setupTablet(h){host=h;
- function context(){const c=host.context(),p=c.page.split('/'),i=c.state.inspections.find(i=>i.id===p[1]&&i.garage===c.garage&&isPM3(i)&&!i.deletedAt);const n=p[2]==='item'?Number(p[3]):i?firstPending(i):-1,t=availableFor(i)[n];return {...c,i,n,t,d:i&&t?draftFor(i,t):null};}
+ function context(){const c=host.context(),p=c.page.split('/'),i=p[0]==='inspection'&&c.state.inspections.find(i=>i.id===p[1]&&i.garage===c.garage&&isPM3(i)&&!i.deletedAt);const n=p[2]==='item'?Number(p[3]):i?firstPending(i):-1,t=availableFor(i)[n];return {...c,i,n,t,d:i&&t?draftFor(i,t):null};}
  async function save(){const c=context();if(!c.d||busy)return;const {i,t,d,n}=c;d.error='';busy=true;const feedback=document.querySelector('[data-result="OK"], [data-reading-next], #tap-text-form .tap-primary');const caption=feedback?.querySelector('strong')||feedback;if(feedback){feedback.setAttribute('aria-busy','true');if(caption)caption.textContent='Saving…';}try{if(d.result==='Defect'&&d.files?.length&&!d.photoIds)d.photoIds=await uploadPhotos(d.files,c.garage);await host.mutation('answer',{result:d.result,readings:d.readings,notes:d.notes,photos:d.result==='Defect'?(d.photoIds||[]):[]},{id:i.id,item:t.id});drafts.delete(i.id+':'+t.id);if(feedback){feedback.removeAttribute('aria-busy');feedback.classList.add('tap-save-success');if(caption)caption.textContent=d.result==='OK'?'OK ✓':'Saved ✓';feedback.setAttribute('aria-label','Saved successfully');await new Promise(resolve=>setTimeout(resolve,650));}busy=false;host.go(routeFor(i.id,n+1,i));host.notify('Saved ✓');}catch(e){busy=false;d.error=e.message;d.conflict=e.status===409;host.render();}}
  async function afterReason(){const {d}=context();if(d.result==='Defect'){d.step='photos';host.render();}else await beginReadings();}
  async function beginReadings(){const {t,d}=context();if(taskReadings(t).length&&['OK','Defect'].includes(d.result)){d.step='reading';d.field=0;host.render();}else await save();}
  async function nextReading(value){const {t,d}=context();if(value===undefined)value=document.querySelector('#tap-reading')?.value;if(!String(value??'').trim()){host.notify('Enter a reading.');return;}const r=taskReadings(t)[d.field];if(r.length===4&&!Number.isFinite(Number(value))){host.notify('Enter a valid number.');return;}d.readings[d.field]=value;d.dirty=true;if(d.field+1<taskReadings(t).length){d.field++;host.render();return;}if(outOfRange(t,d)&&d.result==='OK'){d.result='Defect';d.step='reason';host.render();host.notify('Outside tolerance — record a fault.');return;}await save();}
  document.addEventListener('click',async e=>{const el=e.target.closest('button');if(!el)return;if(busy&&el.closest('.tap-screen'))return;const c=context();try{
- if(el.hasAttribute('data-bus-page')){busPage+=Number(el.dataset.busPage);host.render();}
- if(el.dataset.workStart){busy=true;host.render();const i=await host.mutation('start',{vehicle:el.dataset.workStart});busy=false;host.go(routeFor(i.id,firstPending(i),i));}
+ if(el.dataset.workStart){busy=true;host.render();const i=await host.mutation('start',{vehicle:el.dataset.workStart});busy=false;host.go(routeFor(i.id,resumeIndex(i),i));}
  if(el.dataset.workSubmit){busy=true;el.disabled=true;await host.mutation('submit',{notes:'Submitted via tablet workflow. See individual check results.'},{id:el.dataset.workSubmit});busy=false;host.render();host.notify('Sent for review.');}
  if(!c.d)return;const {d,t,i,n}=c;
  if(el.hasAttribute('data-work-instruction')){d.step='instruction';host.render();}
@@ -90,14 +82,14 @@ export function setupTablet(h){host=h;
  if(el.hasAttribute('data-reading-choice'))await nextReading(el.dataset.readingChoice);
  if(el.hasAttribute('data-reading-next'))await nextReading();
  if(el.hasAttribute('data-number')){const input=document.querySelector('#tap-reading'),v=el.dataset.number;let val=input.value;if(v==='clear')val='';else if(v==='delete')val=val.slice(0,-1);else if(v==='−')val=val.startsWith('-')?val.slice(1):'-'+val;else if(v!=='.'||!val.includes('.'))val+=v;input.value=val.slice(0,20);d.readings[d.field]=input.value;d.dirty=true;}
- if(el.hasAttribute('data-work-back')){d.error='';if(d.step!=='question'){d.step='question';host.render();}else host.go(n>0?routeFor(i.id,n-1,i):'vehicle/'+i.vehicle);}
+ if(el.hasAttribute('data-work-back')){d.error='';if(d.step!=='question'){if(d.step==='reading'&&d.field>0)d.field--;else d.step=d.step==='photos'?'reason':d.step==='note'?'reason':d.step==='reading'&&d.result==='Defect'?'photos':'question';host.render();}else host.go(n>0?routeFor(i.id,n-1,i):'checks/'+encodeURIComponent(i.vehicle));}
  if(el.hasAttribute('data-work-retry')||el.hasAttribute('data-keep-entry'))await save();
  if(el.hasAttribute('data-work-edit')){d.error='';d.step='question';host.render();}
  if(el.hasAttribute('data-work-refresh')){await host.reload();const fresh=context();d.error='';d.step=(fresh.i?.answers[t.id]?.updated||null)!==d.base?'conflict':'question';host.render();}
  if(el.hasAttribute('data-use-saved')){drafts.delete(i.id+':'+t.id);host.render();}
  }catch(error){busy=false;if(el.dataset.workSubmit)el.disabled=false;host.render();host.notify(error.message);}});
  document.addEventListener('submit',async e=>{if(!['tap-text-form','tap-note-form'].includes(e.target.id))return;e.preventDefault();if(busy)return;if(e.target.id==='tap-text-form'){await nextReading();return;}const {d}=context();d.notes=document.querySelector('#tap-note').value.trim();if(!d.notes){host.notify('Add a short note.');return;}d.dirty=true;await afterReason();});
- document.addEventListener('input',e=>{if(e.target.id==='tap-search'){const pos=e.target.selectionStart;busQuery=e.target.value;busPage=0;host.render();const input=document.querySelector('#tap-search');input.focus();try{input.setSelectionRange(pos,pos);}catch{}}const {d}=context();if(!d)return;if(e.target.id==='tap-reading'){d.readings[d.field]=e.target.value;d.dirty=true;}if(e.target.id==='tap-note'){d.notes=e.target.value;d.dirty=true;}});
+ document.addEventListener('input',e=>{const {d}=context();if(!d)return;if(e.target.id==='tap-reading'){d.readings[d.field]=e.target.value;d.dirty=true;}if(e.target.id==='tap-note'){d.notes=e.target.value;d.dirty=true;}});
  document.addEventListener('change',e=>{if(e.target.name==='photos'){const {d}=context();if(d){d.files=[...e.target.files];d.photoIds=null;d.dirty=true;}}});
  window.addEventListener('beforeunload',e=>{if(busy||[...drafts.values()].some(d=>d.dirty)){e.preventDefault();e.returnValue='';}});
 }

@@ -49,7 +49,7 @@ export function adminToolsView(c){
  if(parts[0]==='template-admin')return templateAdmin(c,parts[1],parts[2]);
  if(parts[0]==='schedules')return schedulesView(c,parts[1],parts[2]);
  const deleted=c.state.inspections.filter(i=>i.garage===c.garage&&i.deletedAt);
- return frame('Manage FleetTap',`<div class="tap-grid jobs">${tile('template-admin','Inspection template','Original PDF, questions and sections')}${tile('schedules','Schedules','Last inspection and next due')}${tile('admin','Users & garages','Accounts and access')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}`,'home');
+ return frame('Manage FleetTap',`<div class="tap-grid jobs">${tile('inspection-records','Inspection records','Review and manage garage inspections')}${tile('template-admin','Inspection template','Original PDF, questions and sections')}${tile('schedules','Schedules','Last inspection and next due')}${tile('admin','Users & garages','Accounts and access')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}`,'home');
 }
 export function setupAdminTools(h){host=h;setupScheduleUI(h,()=>busy);
  document.addEventListener('submit',async e=>{

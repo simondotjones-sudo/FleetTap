@@ -17,7 +17,7 @@ test('save failure retains answer and position; retry advances; failed start rec
  const click=async(dataset)=>{const el={dataset,hasAttribute:k=>Object.hasOwn(dataset,k.replace(/^data-/,'').replace(/-([a-z])/g,(_,x)=>x.toUpperCase())),closest:()=>true};await listeners.click({target:{closest:()=>el}});};
  await click({result:'OK'});assert.equal(page,`inspection/${i.id}/item/${n}`);assert.equal(i.answers[t.id],undefined);assert.equal(draftFor(i,t).result,'OK');assert.equal(isTabletSaving(),false);assert.match(tabletView(context()),/Not saved yet/);
  assert.ok(!classes.includes('tap-save-success'));assert.ok(!screens.some(s=>s.includes('saved-screen')));fail=false;await click({workRetry:''});assert.equal(i.answers[t.id].result,'OK');assert.equal(page,`inspection/${i.id}/item/${n+1}`);assert.ok(notices.includes('Saved ✓'));assert.ok(classes.includes('tap-save-success'));assert.equal(caption.textContent,'OK ✓');assert.ok(!screens.some(s=>s.includes('saved-screen')));assert.equal(firstPending(i),0);
- fail=true;page='vehicle/DEMO-271';const before=renders;await click({workStart:'DEMO-271'});assert.equal(isTabletSaving(),false);assert.ok(renders>=before+2);assert.match(tabletView(context()),/What are you doing/);
+ fail=true;page='vehicle/DEMO-271';const before=renders;await click({workStart:'DEMO-271'});assert.equal(isTabletSaving(),false);assert.ok(renders>=before+2);assert.match(tabletView(context()),/Resume your check/);
 });
 
 test('reference codes follow instruction button and OK is last',()=>{
