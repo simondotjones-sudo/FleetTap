@@ -1,6 +1,6 @@
 # Netlify Database cutover
 
-Prepared for FleetTap 1.15.10.26.6. Production currently uses the separate Neon project `weathered-base-05562568`. The new schema is installed by Netlify from `netlify/database/migrations/`. Never apply DDL directly to a hosted Netlify database.
+Prepared for FleetTap 1.15.10.26.7. Production currently uses the separate Neon project `weathered-base-05562568`. The new schema is installed by Netlify from `netlify/database/migrations/`. Never apply DDL directly to a hosted Netlify database.
 
 ## Release gate
 
@@ -15,6 +15,10 @@ Simon’s explicit approval is required before merging/publishing `main`. The fe
 5. Validate sign-in, bus rename, inspection amendment/deletion/restoration, source page viewing, question edits and scheduling on the preview. It contains copied data: keep the link private, require authentication, and warn before sharing it.
 
 ## Production after approval
+
+The preview data import was completed on 15 October 2026 through the authenticated Netlify SQL console because the execution workspace could not resolve the direct database hostname. A single atomic data-only statement imported 2 organisations, 2 garages, 1 administrator, 7 sessions, 1 activation token, 6 auth-limit rows, 2 garage records and 36 existing audit events. It also attached the verified original PM3 PDF to both garages and added 2 source-import audit events. A local rehearsal validated the identical statement before execution; hosted SQL checks confirmed the counts, unchanged administrator password hash, matching PDF bytes and linked templates. No source records or production settings were changed.
+
+Hosted Functions use `context.deploy.context` to select the isolated preview database and same-origin request URL. Netlify build-only `CONTEXT` and `DEPLOY_PRIME_URL` are not required at runtime. Production continues to require its configured canonical origin.
 
 1. Deploy the approved code with `FLEETTAP_READ_ONLY=true` (Functions / production) and leave the provider on Neon. Confirm a write returns 503. This establishes a write freeze while the new Netlify production schema is provisioned by deployment. Existing sessions and reads continue.
 2. Use the same data-only import into the empty Netlify production database, with `confirmProduction: true`. Reconcile users, garages, garage records, inspections and audit events. Source counts observed during preparation were 2 organisations, 2 garages, 1 user, 2 garage records, 2 inspections and 36 audit events; re-read current counts at cutover rather than assuming these are still current.

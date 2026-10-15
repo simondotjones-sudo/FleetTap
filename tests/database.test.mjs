@@ -8,7 +8,8 @@ test('isolated Netlify Database: migrations, login, role/garage checks, CAS, pro
  const local=new NetlifyDB({logger:()=>{}}),url=await local.start();
  // This test never reads or connects to a hosted database.
  process.env.NETLIFY_DB_URL=url;process.env.FLEETTAP_DATABASE_PROVIDER='netlify';process.env.NETLIFY_DB_DRIVER='server';
- process.env.CONTEXT='dev';process.env.DEPLOY_PRIME_URL='https://isolated.fleettap.test';
+ delete process.env.CONTEXT;delete process.env.DEPLOY_PRIME_URL;delete process.env.FLEETTAP_DATABASE_PROVIDER;
+ const functionContext={ip:'local',deploy:{context:'deploy-preview'}};
  const client=getDatabase({connectionString:url});
  try{
   await local.applyMigrations('./netlify/database/migrations');
@@ -19,8 +20,8 @@ test('isolated Netlify Database: migrations, login, role/garage checks, CAS, pro
   await sql`INSERT INTO garage_records(garage_id) VALUES(${g.id})`;
   const password=randomToken(),hash=await hashPassword(password);
   await sql`INSERT INTO users(email,name,role,organisation_id,garage_id,password_hash) VALUES('admin@test.invalid','Test admin','garage_manager',${org.id},${g.id},${hash}),('staff@test.invalid','Test staff','mechanic',${org.id},${g.id},${hash})`;
-  const origin=process.env.DEPLOY_PRIME_URL;
-  async function call(fn,body,cookie='',query='',extra={}){const r=await fn(new Request(origin+'/.netlify/functions/test'+query,{method:body?'POST':'GET',headers:{origin,'content-type':'application/json',cookie,...extra},body:body?JSON.stringify(body):undefined}),{ip:'local'});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
+  const origin='https://isolated.fleettap.test';
+  async function call(fn,body,cookie='',query='',extra={}){const r=await fn(new Request(origin+'/.netlify/functions/test'+query,{method:body?'POST':'GET',headers:{origin,'content-type':'application/json',cookie,...extra},body:body?JSON.stringify(body):undefined}),functionContext);return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
   const admin=await call(auth,{action:'login',email:'admin@test.invalid',password});assert.equal(admin.status,200);const staff=await call(auth,{action:'login',email:'staff@test.invalid',password});assert.equal(staff.status,200);
   let version=0;
   const write=async(action,values={},extra={},cookie=admin.cookie)=>{const r=await call(workspace,{action,garage:g.id,version,values,...extra},cookie);if(r.status===200)version=r.data.version;return r;};
@@ -38,10 +39,10 @@ test('isolated Netlify Database: migrations, login, role/garage checks, CAS, pro
   const race=await Promise.all([call(workspace,{action:'vehicle',garage:g.id,version,values:{id:'RACE-1',model:'Bus'}},admin.cookie),call(workspace,{action:'vehicle',garage:g.id,version,values:{id:'RACE-2',model:'Bus'}},admin.cookie)]);
   assert.deepEqual(race.map(r=>r.status).sort(),[200,409]);version=race.find(r=>r.status===200).data.version;
   const pdf=Buffer.from('%PDF-1.4\nTest document\n%%EOF');
-  async function upload(cookie,ver=version,requestOrigin=origin){return docs(new Request(origin+'/.netlify/functions/documents?'+new URLSearchParams({garage:g.id,version:String(ver),name:'Original.pdf'}),{method:'POST',headers:{origin:requestOrigin,'content-type':'application/pdf',cookie},body:pdf}));}
+  async function upload(cookie,ver=version,requestOrigin=origin){return docs(new Request(origin+'/.netlify/functions/documents?'+new URLSearchParams({garage:g.id,version:String(ver),name:'Original.pdf'}),{method:'POST',headers:{origin:requestOrigin,'content-type':'application/pdf',cookie},body:pdf}),functionContext);}
   assert.equal((await upload(staff.cookie)).status,403);assert.equal((await upload(admin.cookie,version,'https://foreign.invalid')).status,403);
   const uploaded=await upload(admin.cookie);assert.equal(uploaded.status,201);const document=await uploaded.json();version=document.version;
-  const getDoc=(cookie,garage=g.id)=>docs(new Request(origin+'/.netlify/functions/documents?'+new URLSearchParams({garage,id:document.id}),{headers:{cookie}}));
+  const getDoc=(cookie,garage=g.id)=>docs(new Request(origin+'/.netlify/functions/documents?'+new URLSearchParams({garage,id:document.id}),{headers:{cookie}}),functionContext);
   assert.equal((await getDoc(staff.cookie)).status,403);assert.equal((await getDoc(admin.cookie,other.id)).status,403);
   const downloaded=await getDoc(admin.cookie);assert.equal(downloaded.status,200);assert.equal(await downloaded.text(),pdf.toString());assert.match(downloaded.headers.get('cache-control'),/no-store/);
   assert.equal((await upload(admin.cookie,version-1)).status,409);
