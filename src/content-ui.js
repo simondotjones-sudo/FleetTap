@@ -1,6 +1,6 @@
 import {api,esc} from './api.js';
 import {author,reviewer} from './roles.js';
-import {sopWorkspaceView,setupSOPDocuments} from './sop-workspace.js';
+import {sopWorkspaceView,setupSOPDocuments,sopTile,contentFrame} from './sop-workspace.js';
 const go=(p,t)=>`<button class="tap-small" type="button" data-go="${esc(p)}">${esc(t)}</button>`;
 const frame=(t,b)=>`<section class="admin-tools content-work"><h1>${esc(t)}</h1>${b}</section>`;
 const full=x=>`<details class="card"><summary>Full instructions · version ${x.version}</summary><p class="record-note">${esc(x.instructions)}</p></details>`;
@@ -8,11 +8,13 @@ export function contentView(c){
  if(c.page==='content/sops'||c.page.startsWith('content/sops/')||c.page.startsWith('org-sop/'))return sopWorkspaceView(c);
  const p=c.page.split('/'),content=c.content||{sops:[],checklists:[]};
  if(p[0]==='content'){
-  if(!author(c.me))return frame('Organisation Admin access required','');
-  if(!c.organisation)return frame('Choose a garage','Select a garage to author content for its organisation.');
-  const kind=p[1]==='sops'?'sops':'checklists',title=kind==='sops'?'SOPs':'Checklists',entry=content[kind].find(x=>x.id===p[2]);
-  if(p[2])return frame(entry?'Edit '+title:'Create '+title,`<form class="card" data-content-form="save" data-kind="${kind}" data-id="${entry?.id||''}"><label>Title<input name="title" required maxlength="160" value="${esc(entry?.title)}"></label><label>${kind==='sops'?'Steps':'Questions'} (one per line)<textarea name="steps" rows="8" required>${esc(entry?.steps.join('\n'))}</textarea></label><label>Full instructions<textarea name="instructions" rows="8" required maxlength="20000">${esc(entry?.instructions)}</textarea></label><p class="help">Shared across this organisation. Existing checklist records keep their saved question version.</p><p class="form-error" role="alert"></p><button>Save ${kind==='sops'?'SOP':'checklist'}</button></form>${go('content/'+kind,'Back')}`);
-  return frame('Organisation '+title,`<div class="toolbar">${go('content/sops','SOPs')}${go('content/checklists','Checklists')}${go('template-admin','PM3 template & PDF')}${go('content/'+kind+'/new','Create '+(kind==='sops'?'SOP':'checklist'))}</div>${content[kind].map(x=>`<article class="card"><h2>${esc(x.title)}</h2><p>${x.steps.length} ${kind==='sops'?'steps':'questions'} · version ${x.version}</p>${go('content/'+kind+'/'+x.id,'Edit')}</article>`).join('')||'<p>No content created yet.</p>'}`);
+  if(!author(c.me))return contentFrame('Organisation Admin access required','','sops');
+  if(!c.organisation)return contentFrame('Choose a garage','<p>Select a garage to author content for its organisation.</p>','content/sops');
+  const list=content.checklists||[],entry=list.find(x=>x.id===p[2]);
+  if(!p[2])return contentFrame('Organisation Checklists',`<div class="sop-hub-grid">${sopTile('content/checklists/new','Create checklist','Build a set of questions','add')}${sopTile('content/checklists/library','Checklist library',list.length+' checklists available','book')}${sopTile('checklists','Run checklists','Complete checks & view records','steps')}${sopTile('content/sops','SOPs','Procedures & source documents','book')}${sopTile('template-admin','PM3 template','Inspection questions & PDF','pdf')}${sopTile('reviews','Review & sign off','Check submitted work','list')}</div>`,'content/sops',true);
+  if(p[2]==='library')return contentFrame('Checklist library',`<div class="toolbar">${go('content/checklists/new','Create checklist')}</div>${list.length?`<div class="sop-hub-grid">${list.map(x=>sopTile('content/checklists/'+x.id,x.title,x.steps.length+' questions · version '+x.version,'list')).join('')}</div>`:'<div class="sop-empty"><h2>No checklists yet</h2><p>Create a checklist to share it across your organisation.</p></div>'}`,'content/checklists');
+  if(p[2]!=='new'&&!entry)return contentFrame('Checklist unavailable','<p>Return to the library to choose a checklist.</p>','content/checklists/library');
+  return contentFrame(entry?'Edit checklist':'Create checklist',`<form class="sop-editor" data-content-form="save" data-kind="checklists" data-id="${esc(entry?.id||'')}"><section class="sop-panel"><h2>Checklist details</h2><label>Title<input name="title" required maxlength="160" value="${esc(entry?.title)}"></label><label>Questions · one per line<textarea name="steps" rows="8" required>${esc(entry?.steps.join('\n'))}</textarea></label><label>Full instructions<textarea name="instructions" rows="8" required maxlength="20000">${esc(entry?.instructions)}</textarea></label><p class="help">Shared across this organisation. Existing checklist records keep their saved question version.</p><p class="form-error" role="alert"></p><button class="tap-primary">Save checklist</button></section></form>`,'content/checklists/library');
  }
  if(p[0]!=='checklists')return '';
  if(p[1]==='run'){
@@ -33,7 +35,7 @@ let busy=false;
 export const contentBusy=()=>busy;
 export function setupContent(host){setupSOPDocuments(host);document.addEventListener('submit',async e=>{const f=e.target;if(!f.dataset.contentForm)return;e.preventDefault();if(busy)return;busy=true;const b=f.querySelector('button'),v=Object.fromEntries(new FormData(f)),c=host.context();b.disabled=true;try{
  const action=f.dataset.contentForm;
- if(action==='save'){const result=await api('content',{kind:f.dataset.kind,organisation_id:c.organisation,version:c.contentVersion,values:{...v,id:f.dataset.id}});await host.reload();host.go(f.dataset.kind==='sops'?'org-sop/'+result.id:'content/'+f.dataset.kind);}
+ if(action==='save'){const result=await api('content',{kind:f.dataset.kind,organisation_id:c.organisation,version:c.contentVersion,values:{...v,id:f.dataset.id}});await host.reload();host.go(f.dataset.kind==='sops'?'org-sop/'+result.id:'content/checklists/library');}
  else{const r=await host.mutation('checklist_'+action,v,{id:f.dataset.id});if(action==='start')host.go('checklists/run/'+r.id);else if(action==='answer'){const run=host.context().state.checklistRuns.find(r=>r.id===f.dataset.id),next=Math.min(Number(v.item)+1,run.template.steps.length-1);host.go('checklists/run/'+r.id+'/'+next);}else host.go('checklists/run/'+f.dataset.id);}
  host.notify('Saved.');
  }catch(err){f.querySelector('.form-error').textContent=err.message;if(err.status===409)await host.reload();}finally{busy=false;b.disabled=false;}});}

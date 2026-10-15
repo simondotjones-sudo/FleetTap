@@ -1,5 +1,11 @@
 # FleetTap
 
+## Content layout correction — 1.15.10.26.15
+
+Removed the Organisation SOPs subtitle and shortened its tile captions. Organisation Checklists now uses the same compact six-tile layout, with a separate checklist library and a matching editor. Saving a checklist returns to its library. Short desktop viewports use tighter spacing so the tiles stay above the floating navigation. No permissions, storage or AI behaviour changed.
+
+Validation: 68 existing tests and build passed. Browser checks covered both hubs at 1440×900, 1264×696 (zoomed desktop equivalent), 1024×768 and 390×844, with no horizontal overflow, and verified checklist creation/editing, return navigation and staff access denial.
+
 ## SOP workspace — 1.15.10.26.14
 
 Organisation SOPs now opens as six large tiles: Create SOP, SOP library, Drafts, Upload & generate, Checklists and PM3 template. New SOPs open on an overview with summary, reference/revision, review date and precautions, then offer a guided step view, full instructions and the attached source PDF. The built-in PM3 overview links to the existing private source PDF for the selected garage; staff can read that current document, while access to superseded inspection sources remains manager-only. Existing technical-review warnings and the blocked regeneration task are unchanged.
