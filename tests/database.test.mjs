@@ -31,6 +31,13 @@ test('isolated Netlify Database: migrations, login, role/garage checks, CAS, pro
   for(const action of ['vehicle_edit','inspection_manage','template_edit','schedule'])assert.equal((await write(action,{}, {},staff.cookie)).status,403);
   assert.equal((await write('vehicle_edit',{id:'BUS-2',name:'Test bus',model:'SG271+',registration:'TEST'},{id:'BUS-1'})).status,200);
   assert.equal((await write('schedule',{vehicle:'BUS-2',interval:1,unit:'months',firstDue:'2026-10-31'})).status,200);
+  assert.equal((await write('schedule',{scope:'model',modelType:'SG',interval:1,unit:'months',basis:'history',firstDue:'2026-10-31',replaceOverrides:true})).status,200);
+  const modelRead=await call(workspace,null,admin.cookie);
+  assert.equal(modelRead.data.state.modelSchedules[0].modelType,'SG');
+  assert.ok(modelRead.data.state.schedules[0].supersededAt);
+  assert.equal((await write('schedule',{scope:'model',modelType:'SG',interval:1,unit:'months',firstDue:'2026-10-31'},{},staff.cookie)).status,403);
+  assert.equal((await write('vehicle',{id:'SG900',model:'Bus',modelType:'SG'})).status,200);
+  assert.equal((await write('vehicle',{id:'BAD',model:'Bus',modelType:'BAD'})).status,400);
   const started=await write('start',{vehicle:'BUS-2'},{},staff.cookie);assert.equal(started.status,200);const id=started.data.result.id;assert.match(started.data.result.craftworker,/Test staff/);
   assert.equal((await write('template_edit',{operation:'question',id:'1-2',question:'New wording',instruction:'Full source instruction',section:'Brake Test',page:1})).status,200);
   const stale=await call(workspace,{action:'vehicle',garage:g.id,version:version-1,values:{id:'STALE',model:'Bus'}},admin.cookie);assert.equal(stale.status,409);

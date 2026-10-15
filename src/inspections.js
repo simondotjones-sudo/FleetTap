@@ -1,4 +1,5 @@
 import {pm3} from './pm3.js';
+import {modelTypeForSave} from './fleet-models.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
 import {validDate} from './scheduling.js';
 import {addRecord} from './model.js';
@@ -63,5 +64,5 @@ export function saveVehicle(state,garage,values){
  if(!/^[A-Z0-9 -]{1,40}$/.test(id))throw Error('Use letters, numbers, spaces or hyphens for the fleet number.');
  if(state.vehicles.some(v=>v.id===id&&v.garage===garage))throw Error('This fleet number already exists.');
  if(values.due&&!validDate(values.due))throw Error('Choose a valid inspection date.');
- const v={id,garage,name:String(values.name||'').trim().slice(0,120),model:values.model.trim(),registration:values.registration?.trim()||'',status:'Awaiting inspection',warranty:'Unknown',history:[],due:values.due||'',created:new Date().toISOString()};state.vehicles.push(v);return v;
+ const v={id,garage,name:String(values.name||'').trim().slice(0,120),model:values.model.trim(),modelType:modelTypeForSave({...values,id}),registration:values.registration?.trim()||'',status:'Awaiting inspection',warranty:'Unknown',history:[],due:values.due||'',created:new Date().toISOString()};state.vehicles.push(v);return v;
 }

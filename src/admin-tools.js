@@ -3,7 +3,9 @@ import {manager} from './admin-ui.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
 import {taskReadings} from './inspections.js';
 import {taskCopy} from './tablet.js';
-import {scheduleStatus,addInterval,today} from './scheduling.js';
+import {today} from './scheduling.js';
+import {fleetModels,vehicleModelType} from './fleet-models.js';
+import {schedulesView,schedulePreview,scheduleValues,setupScheduleUI} from './schedule-ui.js';
 
 const go=(page,label)=>`<button type="button" class="tap-small" data-go="${esc(page)}">${esc(label)}</button>`;
 const tile=(page,title,sub)=>`<button type="button" class="tap-tile admin-tile" data-go="${esc(page)}"><strong>${esc(title)}</strong><small>${esc(sub)}</small></button>`;
@@ -19,7 +21,7 @@ const sourceLink=(c,t,page=1)=>t.sourceId?`<a class="tap-small document-link" hr
 
 function busEditor(c,id){
  const v=c.state.vehicles.find(v=>v.garage===c.garage&&v.id===id);if(!v)return frame('Bus unavailable','Choose a bus from this garage.','fleet');
- return frame('Edit bus',`<form class="card fleet-form" data-admin-form="vehicle" data-id="${esc(id)}"><label>Bus name<input name="name" value="${esc(v.name||'')}" maxlength="120" placeholder="Optional display name"></label><label>Fleet number<input name="id" value="${esc(v.id)}" required maxlength="40"></label><label>Registration<input name="registration" value="${esc(v.registration)}" maxlength="30"></label><label>Model / class<input name="model" value="${esc(v.model)}" required maxlength="120"></label><p class="help">Existing inspections, faults, actions and schedules stay linked when you change the fleet number.</p><p class="admin-error" role="alert"></p><button>Save bus details</button></form>`,'vehicle/'+encodeURIComponent(id));
+ return frame('Edit bus',`<form class="card fleet-form" data-admin-form="vehicle" data-id="${esc(id)}"><label>Bus name<input name="name" value="${esc(v.name||'')}" maxlength="120" placeholder="Optional display name"></label><label>Fleet number<input name="id" value="${esc(v.id)}" required maxlength="40"></label><label>Registration<input name="registration" value="${esc(v.registration)}" maxlength="30"></label><label>Model type<select name="modelType"><option value="">Other model</option>${fleetModels.map(m=>`<option value="${m.id}" ${vehicleModelType(v)===m.id?'selected':''}>${esc(m.id+' · '+m.name)}</option>`).join('')}</select></label><label>Model description<input name="model" value="${esc(v.model)}" required maxlength="120"></label><p class="help">Model schedules follow this model type. Existing individual schedules remain exceptions.</p><p class="help">Existing inspections, faults, actions and schedules stay linked when you change the fleet number.</p><p class="admin-error" role="alert"></p><button>Save bus details</button></form>`,'vehicle/'+encodeURIComponent(id));
 }
 function inspectionAdmin(c,id){
  const i=c.state.inspections.find(i=>i.id===id&&i.garage===c.garage&&isPM3(i));if(!i)return frame('Inspection unavailable','Choose an inspection from this garage.','checks');
@@ -38,11 +40,6 @@ function templateAdmin(c,part,id){
  if(part==='question')return questionEditor(c,t,id);
  return frame('Inspection template',`<article class="card"><div class="row"><h2>${esc(t.title)}</h2>${pill('Version '+t.version)}</div><p>${t.tasks.length} questions · ${sections.length} sections · draft mapping</p>${sourceLink(c,t)}<details><summary>${t.sourceId?'Replace original PDF':'Attach original inspection PDF'}</summary><form data-admin-form="document"><label>Original inspection document<input name="document" type="file" accept="application/pdf" required></label><p class="help">PDF, up to 4 MB. Available only to administrators in this garage. Older inspection versions retain their original attachment.</p><p class="admin-error" role="alert"></p><button>Save original PDF</button></form></details></article><div class="toolbar">${go('template-admin/question/new','Add question / section')}</div>${sections.map((section,n)=>`<details class="card template-section" ${n===0?'open':''}><summary>${esc(section)} <span>${t.tasks.filter(q=>q.section===section).length} questions</span></summary><form class="section-rename" data-admin-form="section"><input type="hidden" name="section" value="${esc(section)}"><label>Section name<input name="name" value="${esc(section)}" maxlength="120" required></label><p class="admin-error" role="alert"></p><button>Rename section</button></form><div class="toolbar"><button type="button" class="tap-small" data-template-action="move_section" data-section="${esc(section)}" data-direction="-1" ${n===0?'disabled':''}>Move section up</button><button type="button" class="tap-small" data-template-action="move_section" data-section="${esc(section)}" data-direction="1" ${n===sections.length-1?'disabled':''}>Move section down</button><button type="button" class="tap-small" data-template-action="delete_section" data-section="${esc(section)}" ${t.tasks.some(q=>q.section===section&&q.blocked)?'disabled':''}>Delete section</button></div><ol class="question-list">${t.tasks.filter(q=>q.section===section).map((q,index,qs)=>`<li><button class="question-open" type="button" data-go="template-admin/question/${esc(q.id)}"><strong>${esc(q.question||taskCopy(q).text)}</strong><small>Page ${q.page} · ${q.blocked?'Blocked source instruction':'Edit question and view original'}</small></button><div class="toolbar"><button type="button" class="tap-small" aria-label="Move question up" data-template-action="move_question" data-id="${esc(q.id)}" data-direction="-1" ${index===0?'disabled':''}>↑</button><button type="button" class="tap-small" aria-label="Move question down" data-template-action="move_question" data-id="${esc(q.id)}" data-direction="1" ${index===qs.length-1?'disabled':''}>↓</button><button type="button" class="tap-small" data-template-action="delete_question" data-id="${esc(q.id)}" ${q.blocked?'disabled':''}>Delete question</button></div></li>`).join('')}</ol></details>`).join('')}<p class="help">Edits apply to this garage’s future inspections. Each started inspection keeps an immutable copy of its questions and source document.</p>`);
 }
-function schedules(c,vehicle){
- const buses=c.state.vehicles.filter(v=>v.garage===c.garage),selected=buses.find(v=>v.id===vehicle),s=selected?scheduleStatus(c.state,c.garage,selected.id).schedule:null;
- const values=buses.map(v=>({v,...scheduleStatus(c.state,c.garage,v.id)})).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
- return frame('Inspection schedules',`<p class="help">Choose the buses, interval and starting date. Completed inspections automatically calculate the next due date.</p><form class="card schedule-form" data-admin-form="schedule"><label>Bus<select name="vehicle" required><option value="">Choose a bus</option>${buses.length>1?'<option value="__all__">All buses in this garage</option>':''}${buses.map(v=>`<option value="${esc(v.id)}" ${v.id===selected?.id?'selected':''}>${esc(v.name?v.name+' · '+v.id:v.id)}</option>`).join('')}</select></label><fieldset><legend>How often?</legend><div class="interval-presets">${[[28,'days','28 days'],[4,'weeks','4 weeks'],[1,'months','Monthly'],[3,'months','3 months'],[12,'months','Yearly']].map(([n,u,l])=>`<button class="tap-small" type="button" data-schedule-interval="${n}" data-schedule-unit="${u}">${l}</button>`).join('')}</div><div class="schedule-interval"><label>Every<input type="number" name="interval" min="1" max="3650" required value="${s?.interval||12}"></label><label>Period<select name="unit">${['days','weeks','months'].map(u=>`<option ${u===(s?.unit||'months')?'selected':''}>${u}</option>`).join('')}</select></label></div></fieldset><label>Starting point<select name="basis"><option value="last" ${s?.lastDate?'selected':''}>Last completed inspection</option><option value="first" ${!s?.lastDate?'selected':''}>First due date</option></select></label><label data-schedule-date-label>${s?.lastDate?'Last completed inspection':'First due date'}<input type="date" name="date" required value="${esc(s?.lastDate||s?.firstDue||'')}"></label><label data-schedule-reference ${!s?.lastDate?'hidden':''}>Inspection / service record reference<input name="reference" maxlength="1000" value="${esc(s?.reference||'')}" ${s?.lastDate?'required':''}></label><label class="toggle-label"><input name="enabled" type="checkbox" ${s?.enabled===false?'':'checked'}> Schedule active</label><p class="schedule-calculation" aria-live="polite" data-schedule-preview>Choose the starting date to see the next due date.</p><p class="help">Saving replaces the PM3 schedule for the selected buses. Awaiting-review, deleted and unfinished inspections never move the due date.</p><p class="admin-error" role="alert"></p><button>Save schedule</button></form><h2>Last inspection → next due</h2><div class="schedule-table-wrap"><table class="schedule-table"><thead><tr><th>Bus</th><th>Last completed</th><th>Next due</th><th>Status</th><th></th></tr></thead><tbody>${values.map(({v,last,lastSubmitted,due,status,schedule})=>`<tr><th>${esc(v.name||v.id)}${v.name?`<small>${esc(v.id)}</small>`:''}</th><td>${date(last)}${lastSubmitted&&lastSubmitted!==last?`<small>Last submitted: ${date(lastSubmitted)}</small>`:''}</td><td>${due?date(due):'Not set'}${schedule?`<small>Every ${schedule.interval} ${esc(schedule.unit)}</small>`:''}</td><td>${pill(status)}</td><td>${go('schedules/'+encodeURIComponent(v.id),'Edit schedule')}</td></tr>`).join('')}</tbody></table></div>`,selected?'vehicle/'+encodeURIComponent(selected.id):'manage');
-}
 export function adminToolsView(c){
  if(!manager(c.me))return frame('Administrator access required','Ask your administrator.','home');
  if(!c.garage)return frame('Choose a garage','Create or choose a garage to manage its fleet.','admin');
@@ -50,29 +47,23 @@ export function adminToolsView(c){
  if(parts[0]==='bus-edit')return busEditor(c,parts[1]);
  if(parts[0]==='inspection-admin')return inspectionAdmin(c,parts[1]);
  if(parts[0]==='template-admin')return templateAdmin(c,parts[1],parts[2]);
- if(parts[0]==='schedules')return schedules(c,parts[1]);
+ if(parts[0]==='schedules')return schedulesView(c,parts[1],parts[2]);
  const deleted=c.state.inspections.filter(i=>i.garage===c.garage&&i.deletedAt);
  return frame('Manage FleetTap',`<div class="tap-grid jobs">${tile('template-admin','Inspection template','Original PDF, questions and sections')}${tile('schedules','Schedules','Last inspection and next due')}${tile('admin','Users & garages','Accounts and access')}</div>${deleted.length?`<details class="card"><summary>Deleted inspections (${deleted.length})</summary>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}</details>`:''}`,'home');
 }
-function schedulePreview(form){
- const f=form.elements,basis=f.basis.value,label=form.querySelector('[data-schedule-date-label]'),ref=form.querySelector('[data-schedule-reference]');label.firstChild.textContent=basis==='last'?'Last completed inspection':'First due date';
- ref.hidden=basis!=='last';f.reference.required=basis==='last';if(basis==='last')f.date.max=today();else f.date.removeAttribute('max');
- try{form.querySelector('[data-schedule-preview]').textContent=(f.enabled.checked?'Next due: ':'Paused · calculated date: ')+date(basis==='last'?addInterval(f.date.value,Number(f.interval.value),f.unit.value):f.date.value);}catch{form.querySelector('[data-schedule-preview]').textContent='Choose a valid date and interval.';}
-}
-export function setupAdminTools(h){host=h;
+export function setupAdminTools(h){host=h;setupScheduleUI(h,()=>busy);
  document.addEventListener('submit',async e=>{
   const form=e.target;if(!form.dataset.adminForm)return;e.preventDefault();if(busy)return;const c=host.context();if(!manager(c.me))return;
   const v=Object.fromEntries(new FormData(form)),kind=form.dataset.adminForm;const error=form.querySelector('.admin-error');error.textContent='';
   if(kind==='inspection'&&v.operation==='delete'&&!confirm('Delete this inspection? It will remain recoverable in Manage FleetTap. Linked faults and repair actions stay open.'))return;
-  if(kind==='schedule'&&v.vehicle==='__all__'&&!confirm('Apply this schedule to every bus in this garage, replacing their existing schedules?'))return;
+  if(kind==='schedule'&&v.scope==='all'&&!confirm('Apply this schedule to every bus currently in this garage, replacing their individual schedules?'))return;
   busy=true;const button=form.querySelector('button[type="submit"],button:not([type])');if(button)button.disabled=true;
   try{
    if(kind==='vehicle'){const r=await host.mutation('vehicle_edit',v,{id:form.dataset.id});host.go('vehicle/'+encodeURIComponent(r.id));}
    if(kind==='inspection'){await host.mutation('inspection_manage',v,{id:form.dataset.id});host.render();}
    if(kind==='question'||kind==='section'){await host.mutation('template_edit',{...v,operation:kind,conditional:v.conditional==='on'});host.go('template-admin');}
    if(kind==='schedule'){
-    const ids=v.vehicle==='__all__'?c.state.vehicles.filter(b=>b.garage===c.garage).map(b=>b.id):[v.vehicle];
-    await host.mutation('schedule',{vehicles:ids,interval:Number(v.interval),unit:v.unit,lastDate:v.basis==='last'?v.date:'',firstDue:v.basis==='first'?v.date:'',reference:v.reference,enabled:v.enabled==='on'});host.go('schedules');
+    await host.mutation('schedule',scheduleValues(v));host.go('schedules');
    }
    if(kind==='document'){
     const file=form.elements.document.files[0];if(!file||file.size>4*1024*1024)throw Error('Choose a PDF under 4 MB.');
@@ -85,11 +76,12 @@ export function setupAdminTools(h){host=h;
  });
  document.addEventListener('click',async e=>{
   const el=e.target.closest('button');if(!el||busy)return;
-  if(el.dataset.scheduleInterval){const form=el.closest('form');form.elements.interval.value=el.dataset.scheduleInterval;form.elements.unit.value=el.dataset.scheduleUnit;schedulePreview(form);return;}
+  if(el.dataset.scheduleInherit&&manager(host.context().me)){busy=true;el.disabled=true;try{await host.mutation('schedule',{operation:'inherit',vehicle:el.dataset.scheduleInherit});host.go('schedules');host.notify('Model schedule applied.');}catch(error){host.notify(error.message);}finally{busy=false;el.disabled=false;}return;}
+  if(el.dataset.scheduleInterval){const form=el.closest('form');form.elements.interval.value=el.dataset.scheduleInterval;form.elements.unit.value=el.dataset.scheduleUnit;schedulePreview(form,host.context());return;}
   if(!el.dataset.templateAction||!manager(host.context().me))return;
   if(el.dataset.templateAction.startsWith('delete')&&!confirm('Remove this from future inspections? Existing inspection records keep their original questions.'))return;
   busy=true;el.disabled=true;try{await host.mutation('template_edit',{operation:el.dataset.templateAction,id:el.dataset.id,section:el.dataset.section,direction:Number(el.dataset.direction)});host.render();host.notify('Template saved.');}catch(e){host.notify(e.message);}finally{busy=false;el.disabled=false;}
  });
- document.addEventListener('input',e=>{const form=e.target.closest('form');if(!form)return;if(form.dataset.adminForm==='schedule')schedulePreview(form);if(form.dataset.adminForm==='question'&&e.target.name==='question'){const preview=document.querySelector('[data-question-preview]');if(preview)preview.textContent=e.target.value;}});
- document.addEventListener('change',e=>{const form=e.target.closest('form');if(form?.dataset.adminForm==='schedule')schedulePreview(form);});
+ document.addEventListener('input',e=>{const form=e.target.closest('form');if(!form)return;if(form.dataset.adminForm==='schedule')schedulePreview(form,host.context());if(form.dataset.adminForm==='question'&&e.target.name==='question'){const preview=document.querySelector('[data-question-preview]');if(preview)preview.textContent=e.target.value;}});
+ document.addEventListener('change',e=>{const form=e.target.closest('form');if(form?.dataset.adminForm==='schedule')schedulePreview(form,host.context());});
 }

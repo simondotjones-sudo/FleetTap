@@ -1,5 +1,6 @@
 import {tasksFor,isPM3,templateFor} from './templates.js';
 import {validDate,today} from './scheduling.js';
+import {modelTypeForSave,vehicleModelType} from './fleet-models.js';
 const reason=v=>{const r=String(v||'').trim();if(r.length<5||r.length>2000)throw Error('Enter a reason (5–2000 characters).');return r;};
 const audit=(i,action,actor,why,previous)=>{(i.audit??=[]).push({action,actor,reason:why,at:new Date().toISOString(),previous});};
 export function editVehicle(state,garage,id,v,actor){
@@ -7,9 +8,10 @@ export function editVehicle(state,garage,id,v,actor){
  const next=String(v.id||'').trim().toUpperCase().replace(/\s+/g,'-'),name=String(v.name||'').trim(),model=String(v.model||'').trim(),registration=String(v.registration||'').trim();
  if(!/^[A-Z0-9 -]{1,40}$/.test(next)||!model||model.length>120||name.length>120||registration.length>30)throw Error('Enter a fleet number and model within the allowed lengths.');
  if(state.vehicles.some(b=>b!==bus&&b.garage===garage&&b.id===next))throw Error('This fleet number already exists.');
- const previous={id:bus.id,name:bus.name||'',model:bus.model,registration:bus.registration};
+ const modelType=modelTypeForSave({...v,id:next,...(v.modelType===undefined?{modelType:vehicleModelType(bus)}:{})});
+ const previous={id:bus.id,name:bus.name||'',model:bus.model,modelType:vehicleModelType(bus),registration:bus.registration};
  (bus.audit??=[]).push({action:'Edit bus',actor,at:new Date().toISOString(),previous});
- Object.assign(bus,{id:next,name,model,registration});
+ Object.assign(bus,{id:next,name,model,modelType,registration});
  // Keep every existing link when correcting a fleet number. Audit snapshots retain the old identity.
  if(next!==id)for(const key of ['inspections','faults','reports','actions','schedules'])for(const r of state[key]||[])if(r.garage===garage&&r.vehicle===id)r.vehicle=next;
  return {id:next};
