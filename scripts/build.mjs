@@ -3,7 +3,7 @@ import {FLEETTAP_APP_MAJOR,FLEETTAP_APP_RELEASE_DATE,FLEETTAP_APP_BUILD,FLEETTAP
 if(!Number.isSafeInteger(FLEETTAP_APP_MAJOR)||FLEETTAP_APP_MAJOR<1||!Number.isSafeInteger(FLEETTAP_APP_BUILD)||FLEETTAP_APP_BUILD<1||!/^\d{2}\.\d{2}\.\d{2}$/.test(FLEETTAP_APP_RELEASE_DATE))throw Error('Invalid FleetTap release metadata.');
 await rm('dist',{recursive:true,force:true});
 await mkdir('dist');
-for(const path of ['index.html','offline.html','manifest.webmanifest','workspace.css','fleet.css','tablet.css','pwa.css','assets','src','_headers']) await cp(path,`dist/${path}`,{recursive:true});
+for(const path of ['index.html','offline.html','manifest.webmanifest','workspace.css','fleet.css','admin-tools.css','tablet.css','pwa.css','assets','src','_headers']) await cp(path,`dist/${path}`,{recursive:true});
 // Stamp both entry assets and imported modules so each release has fresh URLs.
 for(const page of ['index.html','offline.html']){
  const html=await readFile(`dist/${page}`,'utf8');
@@ -18,4 +18,4 @@ await writeFile('dist/version.json',JSON.stringify({version:FLEETTAP_APP_VERSION
 const offlineAssets=['/offline.html',`/pwa.css?v=${FLEETTAP_APP_BUILD}`,`/src/offline.js?v=${FLEETTAP_APP_BUILD}`,'/assets/icons/icon-192.png','/assets/mark.svg','/assets/fonts/Gellix-Regular.woff2','/assets/fonts/Gellix-Bold.woff2'];
 const worker=await readFile('sw.js','utf8');
 await writeFile('dist/sw.js',worker.replace('__BUILD__',String(FLEETTAP_APP_BUILD)).replace('__OFFLINE_ASSETS__',JSON.stringify(offlineAssets)));
-console.log(`FleetTap ${FLEETTAP_APP_VERSION} built. Database migrations are managed separately.`);
+console.log(`FleetTap ${FLEETTAP_APP_VERSION} built. Netlify Database migrations apply during deployment; production provider cutover is explicit.`);
