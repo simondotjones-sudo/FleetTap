@@ -81,6 +81,7 @@ function navigateBack(){
  if(local){local.click();return;}
  const parent=[...document.querySelectorAll('#workspace .tap-footer [data-go],#workspace .toolbar [data-go]')].find(b=>/^(←|Back|Change bus|Choose a bus)/.test(b.textContent.trim()));
  if(parent){go(parent.dataset.go);return;}
+ if(current().startsWith('roadmap/')){go('roadmap');return;}
  if(current().startsWith('inspection/')){const i=state.inspections.find(i=>i.id===current().split('/')[1]&&i.garage===garage);go(i?'checks/'+encodeURIComponent(i.vehicle):'checks');return;}
  go('home');
 }
