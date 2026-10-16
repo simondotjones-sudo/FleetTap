@@ -41,6 +41,7 @@ export function manageInspection(state,garage,id,values,actor){
   audit(i,'Amend notes',actor,why,{notes:i.notes||''});i.notes=String(values.notes||'').trim().slice(0,4000);return {id};
  }
  if(op==='complete'){
+  if(Object.values(i.rechecks||{}).some(x=>!x.resolvedAt))throw Error('Resolve all measurement rechecks first.');
   if(i.status!=='Awaiting review')throw Error('Submit the inspection for review first.');
   if(tasksFor(i).some(t=>t.blocked||!i.answers[t.id]||i.answers[t.id].result==='Not completed'))throw Error('Resolve all blocked and unfinished tasks before recording completion.');
   if(!validDate(values.date)||values.date>today()||values.date<i.created.slice(0,10))throw Error('Choose a completion date between the inspection start and today.');

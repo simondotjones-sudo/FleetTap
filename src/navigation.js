@@ -4,7 +4,7 @@ import {esc} from './api.js';
 export function menuSections(user){
  const sections=[];
  if(manager(user))sections.push({title:'My Garage',items:[['garage-today','Garage Today'],['performance','Management visibility'],['manage','Manage FleetTap'],['fleet','Fleet']]});
- sections.push({title:'My Work',items:[['my-jobs','My Jobs'],['my-checks','My Checks'],['actions','My Actions'],...(user?.role==='supervisor'?[['reviews','Review & sign off']]:[])]});
+ sections.push({title:'My Work',items:[['my-jobs','My Jobs'],['required-instructions','Required instructions'],['my-checks','My Checks'],['actions','My Actions'],...(user?.role==='supervisor'?[['reviews','Review & sign off']]:[])]});
  if(user?.role==='platform_admin')sections.push({title:'Platform Admin',items:[['roadmap','Roadmap']]});
  return sections;
 }

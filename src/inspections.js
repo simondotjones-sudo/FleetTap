@@ -34,6 +34,16 @@ export function startInspection(state,vehicle,garage,craftworker){
 }
 export function inspectionFor(state,id,garage){const i=state.inspections.find(i=>i.id===id&&i.garage===garage&&isPM3(i)&&!i.deletedAt);if(!i)throw Error('Inspection unavailable in this garage.');return i;}
 export function outOfRange(task,answer){return taskReadings(task).some((r,n)=>{const raw=answer.readings?.[n];if(raw==null||raw==='')return false;if(r[1]==='Yes/No')return raw==='No';return r.length===4&&(Number(raw)<r[2]||Number(raw)>r[3]);});}
+export function recordRecheck(state,id,garage,taskId,readings,worker){
+ const i=inspectionFor(state,id,garage),task=tasksFor(i).find(t=>t.id===taskId);
+ if(i.status!=='In progress'||!task||task.blocked)throw Error('Check unavailable for readings.');
+ const fields=taskReadings(task);
+ if(!Array.isArray(readings)||readings.length!==fields.length||fields.some((r,n)=>!String(readings[n]??'').trim()||r.length===4&&!Number.isFinite(Number(readings[n]))||r[1]==='Yes/No'&&!['Yes','No'].includes(readings[n])))throw Error('Complete valid readings before requesting a recheck.');
+ if(!outOfRange(task,{readings}))return {required:false};
+ const pending=i.rechecks?.[taskId];if(pending&&!pending.resolvedAt)return {required:true,...pending};
+ const entry={readings:readings.map(x=>String(x).slice(0,300)),worker,at:new Date().toISOString()};
+ (i.rechecks??={})[taskId]=entry;i.audit.push({action:'Out-of-tolerance reading — recheck required',item:taskId,...structuredClone(entry)});return {required:true,...entry};
+}
 export function saveAnswer(state,id,garage,taskId,answer){
  const i=inspectionFor(state,id,garage),task=tasksFor(i).find(t=>t.id===taskId);
  if(i.status!=='In progress')throw Error('Submitted inspections are locked.');
@@ -44,15 +54,20 @@ export function saveAnswer(state,id,garage,taskId,answer){
  if(answer.result!=='OK'&&!answer.notes?.trim())throw Error('Add a reason, defect details or maintenance-history reference.');
  const fields=taskReadings(task);
  if(['OK','Defect'].includes(answer.result))fields.forEach((r,n)=>{const val=answer.readings?.[n];if(val==null||String(val).trim()==='')throw Error('Complete the required readings.');if(r.length===4&&!Number.isFinite(Number(val)))throw Error('Enter a valid numeric reading.');if(r[1]==='Yes/No'&&!['Yes','No'].includes(val))throw Error('Choose Yes or No.');if(r[1]==='choice'&&!['Remove clip (leaving one clip), refit pipe','Remove last clip, refit pipe','No clip present, fit new pipe'].includes(val))throw Error('Choose a valid task.');});
+ const pending=i.rechecks?.[taskId];
+ if(outOfRange(task,answer)&&(!pending||pending.resolvedAt)&&JSON.stringify(i.answers[taskId]?.readings)!==JSON.stringify(answer.readings))throw Error('Record the first out-of-tolerance reading and perform a recheck.');
+ if(pending&&!pending.resolvedAt&&(!['OK','Defect'].includes(answer.result)||!answer.recheckConfirmed||String(answer.recheckNote||'').trim().length<5))throw Error('Recheck required: take fresh readings and explain the outcome (at least 5 characters).');
  if(outOfRange(task,answer)&&answer.result==='OK')throw Error('Reading outside the source tolerance. Record a defect and details for review.');
  const previous=i.answers[taskId];
  if(previous?.fault&&answer.result!=='Defect')throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
- const saved={...answer,worker:answer.worker.trim(),updated:new Date().toISOString(),fault:previous?.fault||null};
+ const saved={...answer,...(previous?.recheck?{recheck:previous.recheck}:{}),worker:answer.worker.trim(),updated:new Date().toISOString(),fault:previous?.fault||null};
  if(answer.result==='Defect'&&!saved.fault){const f=addRecord(state,'faults',{garage,vehicle:i.vehicle,title:`${task.section} · item ${task.number}`,description:answer.notes,inspection:i.id,item:task.id});saved.fault=f.id;}
+ if(pending&&!pending.resolvedAt){saved.recheck={first:structuredClone(pending),readings:[...answer.readings],note:answer.recheckNote,worker:answer.worker,at:saved.updated};pending.resolvedAt=saved.updated;}
  i.answers[taskId]=saved;i.audit.push({item:taskId,previous:previous||null,value:structuredClone(saved),at:saved.updated});return saved;
 }
 export function submitInspection(state,id,garage,notes){
  const i=inspectionFor(state,id,garage);if(i.status!=='In progress')throw Error('Inspection already submitted.');
+ if(Object.values(i.rechecks||{}).some(x=>!x.resolvedAt))throw Error('Resolve every outstanding recheck before submitting.');
  if(tasksFor(i).some(t=>!t.blocked&&!i.answers[t.id]))throw Error('Record a result for every available item before submitting.');
  i.notes=notes.trim();i.status='Awaiting review';i.submitted=new Date().toISOString();
  i.audit.push({action:'Submit for review',at:i.submitted,actor:i.amendment?.actor||i.craftworker});

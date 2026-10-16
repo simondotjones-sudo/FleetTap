@@ -1,3 +1,4 @@
+import {controlFields} from './active-controls.js';
 import {addRecord} from './model.js';
 export const sopPublished=x=>!x.status||x.status==='Published';
 export function visibleContent(data={},canAuthor=false){
@@ -17,6 +18,7 @@ export function saveContent(data,kind,values,actor){
  if((status==='Published'&&!steps.length)||steps.length>100||steps.some(s=>s.length>1000))throw Error('Enter 1–100 steps or questions, one per line (up to 1,000 characters each).');
  const extra={};
  if(kind==='sops'){
+  Object.assign(extra,controlFields({...values,status},old));
   for(const [key,max] of [['summary',1200],['reference',200],['revision',80],['scope',2000],['precautions',4000]]){extra[key]=String(values[key]??old?.[key]??'').trim();if(extra[key].length>max)throw Error(`${key} is too long (maximum ${max} characters).`);}
   extra.reviewDate=String(values.reviewDate??old?.reviewDate??'');
   if(extra.reviewDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(extra.reviewDate)||!Number.isFinite(Date.parse(extra.reviewDate))||new Date(extra.reviewDate).toISOString().slice(0,10)!==extra.reviewDate))throw Error('Choose a valid review date.');

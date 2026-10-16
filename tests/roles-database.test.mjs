@@ -149,6 +149,24 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('downtime_manufacturer',{notifiedAt:'2026-10-01T08:00',repairedAt:'2026-10-02T12:00',hours:24,reference:'Case 1',confirm:'yes',changeReason:'Manufacturer confirmed'},{id:downId})).status,200);
   assert.equal((await write('downtime_void',{changeReason:'Incorrect historic entry'},{id:downId})).status,200);
   assert.equal((await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state.downtime.length,0);
+  // Required instructions are enforced on direct API calls, with authenticated acknowledgements.
+  let cv=(await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data.contentVersion;
+  const controlValues={title:'Mandatory isolation',summary:'Approved isolation',instructions:'Follow approved isolation source.',steps:'Isolate then verify',status:'Published',approved:'yes',reference:'SI TEST',revision:'1',required:'yes',target:'all'};
+  const published=await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:controlValues},cookies.organisation_admin);assert.equal(published.status,200,JSON.stringify(published.data));
+  let controls=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.content.sops;const control=controls.find(x=>x.title===controlValues.title);
+  assert.equal((await write('start',{vehicle:'BUS-1'}, {},'mechanic')).status,400);
+  const ack=await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes',userId:users.supervisor},{},'mechanic');assert.equal(ack.status,200,JSON.stringify(ack.data));assert.equal(ack.data.result.userId,users.mechanic);
+  assert.equal((await call(workspace,null,cookies.supervisor,'?garage='+garage.id)).data.state.instructionAcks.length,0);
+  assert.equal((await call(workspace,null,cookies.garage_manager,'?garage='+garage.id)).data.state.instructionAcks.length,1);
+  const ci=await write('start',{vehicle:'BUS-1'}, {},'mechanic');assert.equal(ci.status,200,JSON.stringify(ci.data));const controlInspectionId=ci.data.result.id;
+  assert.equal((await write('answer',{result:'OK',readings:[20]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
+  const first=await write('reading_check',{readings:[20],worker:'forged'},{id:controlInspectionId,item:'1-1'},'mechanic');assert.equal(first.status,200,JSON.stringify(first.data));assert.match(first.data.result.worker,/mechanic/);
+  assert.equal((await write('answer',{result:'OK',readings:[1]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
+  assert.equal((await write('answer',{result:'OK',readings:[1],recheckConfirmed:true,recheckNote:'Checked calibration and retested'},{id:controlInspectionId,item:'1-1'},'mechanic')).status,200);
+  cv=(await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data.contentVersion;
+  assert.equal((await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:{...controlValues,id:control.id,revision:'2'}},cookies.organisation_admin)).status,200);
+  assert.equal((await write('answer',{result:'OK',readings:[1]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
+  assert.equal((await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes'},{},'mechanic')).status,400);
   // Demo users are private, password-protected accounts; only the platform admin creates them.
   assert.equal((await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.organisation_admin)).status,403);
   const demo=await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.platform_admin);assert.equal(demo.status,200);assert.equal(demo.data.credentials.length,5);

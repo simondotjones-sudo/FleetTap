@@ -13,7 +13,7 @@ test('menu offers each role reachable work and management sections without home 
   const manage=['platform_admin','organisation_admin','garage_manager'].includes(role);
   assert.equal(sections.some(s=>s.title==='My Garage'),manage);
   assert.equal(sections.some(s=>s.title==='Platform Admin'),role==='platform_admin');
-  assert.deepEqual(sections.find(s=>s.title==='My Work').items.map(i=>i[0]),role==='supervisor'?['my-jobs','my-checks','actions','reviews']:['my-jobs','my-checks','actions']);
+  assert.deepEqual(sections.find(s=>s.title==='My Work').items.map(i=>i[0]),role==='supervisor'?['my-jobs','required-instructions','my-checks','actions','reviews']:['my-jobs','required-instructions','my-checks','actions']);
   assert.match(html,/data-go="actions" aria-current="page">My Actions/);
   assert.doesNotMatch(html,/data-go="(?:report|sops|checks|checklists|faults)"/);
   if(manage)assert.deepEqual(sections[0].items.map(i=>i[0]),['garage-today','performance','manage','fleet']);
