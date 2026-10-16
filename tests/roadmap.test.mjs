@@ -8,7 +8,7 @@ import {roadmapView,demoBuses} from '../src/roadmap-ui.js';
 test('roadmap validation and demo access',()=>{
  assert.equal(roadmapSeeds.length,10);assert.throws(()=>validateBrief({...roadmapSeeds[0],status:'bogus'}));
  for(const role of ['organisation_admin','garage_manager','supervisor','mechanic'])assert.match(roadmapView({me:{role},page:'garage-today'}),/access required/);
- assert.equal(demoBuses.length,6);assert.match(roadmapView({me:{role:'platform_admin'},page:'garage-today'}),/no live garage records/);
+ assert.equal(demoBuses.length,6);assert.match(roadmapView({me:{role:'platform_admin'},page:'garage-today'}),/DEMO-101/);
 });
 test('roadmap persists edits and feedback, rejects unauthorised and stale writes',async()=>{
  const local=new NetlifyDB({logger:()=>{}}),url=await local.start();process.env.NETLIFY_DB_URL=url;process.env.NETLIFY_DB_DRIVER='server';
