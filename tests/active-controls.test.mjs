@@ -21,7 +21,7 @@ test('required controls target buses and versions; acknowledgements cannot imper
  assert.throws(()=>acknowledgeControl(s,'other',user,content,{instructionId:x.id,version:newer.version,understood:'yes'}),/garage/);
 });
 test('publication, toolbox attestation and overdue review fail closed',()=>{
- const {s,content,x}=fixture();assert.throws(()=>saveContent(content,'sops',{...values,id:x.id,status:'Draft'},'Admin'),/published/);
+ const {s,content,x}=fixture();const revision=saveContent(content,'sops',{...values,id:x.id,status:'Draft'},'Admin');assert.equal(revision.status,'Draft');assert.equal(content.sops.find(y=>y.id===x.id).status,'Published');assert.throws(()=>requireControls(s,garage,user,content,s.vehicles[0].id),/Work blocked/);
  assert.throws(()=>saveContent(content,'sops',{...values,controlKind:'toolbox',video:'javascript:alert(1)'},'Admin'),/HTTPS/);
  const talk=saveContent(content,'sops',{...values,controlKind:'toolbox',video:'https://example.com/approved-talk'},'Admin');
  assert.throws(()=>acknowledgeControl(s,garage,user,content,{instructionId:talk.id,version:talk.version,understood:'yes'}),/watched/);
@@ -43,5 +43,5 @@ test('recheck preserves first reading, blocks skip/submission, records second re
  assert.throws(()=>recordRecheck(s,i.id,'other','1-1',[20],'Worker'),/garage/);
 });
 test('controls screen escapes authored text and lists manager outstanding rechecks',()=>{
- const {s,content,x}=fixture();x.title='<img onerror=bad>';const html=controlsView({state:s,content,garage,me:{...user,role:'garage_manager'},assignees:[user],page:'required-instructions'});assert.match(html,/&lt;img/);assert.match(html,/Outstanding/);assert.match(html,/Unresolved measurement rechecks/);
+ const {s,content,x}=fixture();x.title='<img onerror=bad>';const html=controlsView({state:s,content,garage,me:{...user,role:'garage_manager'},assignees:[user],page:'required-instructions'});assert.match(html,/&lt;img/);assert.match(html,/To read/);assert.match(controlsView({state:s,content,garage,me:{...user,role:'garage_manager'},assignees:[user],page:'required-instructions/team'}),/Outstanding/);assert.match(controlsView({state:s,content,garage,me:user,page:'required-instructions/rechecks'}),/Measurement rechecks/);
 });

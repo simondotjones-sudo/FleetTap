@@ -10,7 +10,7 @@ export function controlFields(values,old={}){
  const video=String(values.video??old?.video??'').trim();
  if(!['all','model','fleet'].includes(target)||target==='model'&&!fleetModel(model)||target==='fleet'&&(!fleets.length||fleets.length>500||fleets.some(x=>!/^[A-Z0-9-]{1,40}$/.test(x))))throw Error('Choose all buses, a catalogue model or valid fleet IDs.');
  if(video){let url;try{url=new URL(video);}catch{}if(!url||url.protocol!=='https:'||url.username||url.password||video.length>2000)throw Error('Use an HTTPS toolbox talk link.');}
- if(required&&values.status!=='Published')throw Error('A required instruction must be published. Clear Required before withdrawing it; this change is audited.');
+ // Draft requirements remain inactive; an existing published revision stays active until replaced.
  if(required&&(!String(values.reference||'').trim()||!String(values.revision||'').trim()))throw Error('Required controls need a document reference and revision.');
  if(required&&kind==='toolbox'&&!video)throw Error('Add the toolbox talk video link.');
  return {required,target,targetModel:model,targetFleets:fleets,controlKind:kind,video};
@@ -30,7 +30,7 @@ export function acknowledgeControl(s,g,u,content,v){
  if(!s.vehicles.some(b=>b.garage===g&&applies(x,b)))throw Error('Instruction does not apply to this garage fleet.');
  if(v.understood!=='yes'||x.controlKind==='toolbox'&&v.watched!=='yes')throw Error('Confirm you understand the instruction and have watched any required toolbox talk.');
  const prior=acknowledgement(s,g,u.id,x);if(prior)return prior;
- const {audit,...snapshot}=x;
+ const {audit,draftRevision,...snapshot}=x;
  const a={id:crypto.randomUUID(),garage:g,userId:u.id,actor:workerName(u),instructionId:x.id,version:x.version,at:new Date().toISOString(),understood:true,watched:x.controlKind==='toolbox',snapshot:structuredClone(snapshot)};
  (s.instructionAcks??=[]).push(a);return a;
 }

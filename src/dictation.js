@@ -4,10 +4,10 @@ let active=null;
 export const dictationButton=()=>`<button type="button" class="tap-small voice-button" data-report-mic ${recognitionType()?'':'disabled'} aria-pressed="false">${mic}<span>Tap to talk</span></button><p id="voice-status" class="tap-caption" role="status">${recognitionType()?'Or type below. Voice uses your browser’s speech service.':'Voice unavailable in this browser. Type below or use your keyboard microphone.'}</p>`;
 export const dictationActive=()=>!!active;
 export function stopDictation(){if(active){const session=active;active=null;clearTimeout(session.timer);session.recognition.abort();session.cleanup();}}
-export function toggleDictation(input,onText){
+export function toggleDictation(input,onText,trigger=null,feedback=null){
  if(active){active.recognition.stop();return;}
  const Constructor=recognitionType();if(!Constructor)return;
- const button=document.querySelector('[data-report-mic]'),status=document.querySelector('#voice-status');
+ const button=trigger||document.querySelector('[data-report-mic]'),status=feedback||document.querySelector('#voice-status');
  const recognition=new Constructor();recognition.lang='en-IE';recognition.continuous=true;recognition.interimResults=false;
  const cleanup=()=>{input.readOnly=false;button?.setAttribute('aria-pressed','false');if(button)button.querySelector('span').textContent='Tap to talk';};
  const session={recognition,cleanup,timer:null};active=session;

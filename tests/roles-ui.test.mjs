@@ -17,7 +17,7 @@ test('role screens enforce UI boundaries and show configurable escaped role labe
   c.page='content/sops';assert.equal(contentView(c).includes('Organisation Admin access required'),!['platform_admin','organisation_admin'].includes(role));c.page='manage';
  }
  const manager=adminView({id:'manager',role:'garage_manager'},data);assert.doesNotMatch(manager,/Save role names|Create demo accounts|Add organisation/);assert.match(manager,/Update role/);
- const supervisor={...c,me:{role:'supervisor'},page:'reviews/faults/FT-F-DEMO'};assert.match(reviewView(supervisor),/Review and close each linked action first/);assert.doesNotMatch(reviewView(supervisor),/Confirm closure/);
+ const supervisor={...c,me:{role:'supervisor'},page:'reviews/faults/FT-F-DEMO'};assert.match(reviewView(supervisor),/Close the linked actions before closing this record/);assert.doesNotMatch(reviewView(supervisor),/Confirm closure/);
 });
 test('custom checklist preserves published question snapshot and corrective action evidence across edits',()=>{
  const content={sops:[],checklists:[]},state=seed(),garage='demo-north';

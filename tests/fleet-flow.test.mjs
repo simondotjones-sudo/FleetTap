@@ -10,7 +10,7 @@ test('Fleet navigation and history retain garage scope, unknown dates and manage
  assert.doesNotMatch(fleetFlowView(c),/DEMO-315|Add bus/);
  c.page='fleet/new';assert.match(fleetFlowView(c),/Manager access required/);
  c.page='vehicle/DEMO-315';assert.match(fleetFlowView(c),/Bus unavailable/);
- c.page='vehicle/DEMO-302';assert.match(fleetFlowView(c),/Next inspection: Unknown/);assert.match(fleetFlowView(c),/Off road/);
+ c.page='vehicle/DEMO-302';assert.match(fleetFlowView(c),/Next inspection: Unknown/);assert.match(fleetFlowView(c),/Unavailable for service/);
  c.page='history/DEMO-302/faults';assert.doesNotMatch(fleetFlowView(c),/Private south fault/);
  c.page='history/DEMO-302/fault/private-fault';assert.match(fleetFlowView(c),/Record unavailable/);
  c.page='history/DEMO-271/checks';startInspection(state,'DEMO-271','demo-north','Mechanic');assert.match(fleetFlowView(c),/In progress/);
@@ -20,25 +20,27 @@ test('Fleet navigation and history retain garage scope, unknown dates and manage
  assert.equal(vehicleValues({id:'demo 901',model:'Bus',registration:'',due:''}).due,'');
 });
 
-test('guided Add bus preserves entries after a failed save and blocks duplicate submissions',async()=>{
+function harness(c,mutation,reload=async()=>{}){
  const listeners={};globalThis.document={addEventListener:(k,f)=>listeners[k]=f};globalThis.window={addEventListener:()=>{}};
- const c={state:seed(),garage:'demo-north',me:{role:'garage_manager'},page:'fleet/new'};let html='',fail=true,calls=0,release;const notices=[],render=()=>{html=fleetFlowView(c);};
- setupFleet({context:()=>c,render,notify:m=>notices.push(m),reload:async()=>{},mutation:async(action,values)=>{assert.equal(action,'vehicle');calls++;if(fail)throw Error('Connection lost');await new Promise(r=>release=r);return saveVehicle(c.state,c.garage,values);}});
- const click=async dataset=>{const el={dataset,hasAttribute:k=>Object.hasOwn(dataset,k.replace(/^data-/,'').replace(/-([a-z])/g,(_,x)=>x.toUpperCase()))};await listeners.click({target:{closest:()=>el}});};
- const input=(field,value)=>listeners.input({target:{id:'fleet-value',dataset:{fleetField:field},value}});
- render();assert.match(html,/Tap to talk/);input('id','DEMO-271');await click({fleetNext:''});assert.ok(notices.includes('This fleet number already exists.'));
- input('id','demo 901');await click({fleetNext:''});await click({fleetSkip:''});await click({fleetModel:'SG271+ demonstration vehicle'});await click({fleetUnknown:''});assert.match(html,/Ready to add this bus/);
- await click({fleetSave:''});assert.match(html,/Connection lost/);assert.match(html,/DEMO-901/);assert.equal(fleetBusy(),false);
- fail=false;const pending=click({fleetSave:''});assert.equal(fleetBusy(),true);await click({fleetSave:''});assert.equal(calls,2);release();await pending;
- const saved=c.state.vehicles.find(v=>v.id==='DEMO-901');assert.equal(saved.status,'Awaiting inspection');assert.equal(saved.warranty,'Unknown');assert.equal(saved.due,'');assert.deepEqual(saved.history,[]);assert.match(html,/Bus added/);
- c.me.role='mechanic';await click({fleetSave:''});assert.equal(calls,2);
+ const messages=[],button={disabled:false},error={textContent:''};
+ setupFleet({context:()=>c,mutation,reload,render:()=>{},go:p=>c.page=p,notify:m=>messages.push(m)});
+ const form={hasAttribute:k=>k==='data-fleet-create',querySelector:s=>s==='.form-error'?error:button};
+ const NativeFormData=globalThis.FormData;globalThis.FormData=class{constructor(){return new Map(Object.entries({id:'DEMO-901',registration:'',modelType:'SG',model:'',due:''}));}};
+ return {submit:()=>listeners.submit({target:form,preventDefault(){}}),error,button,messages,restore:()=>globalThis.FormData=NativeFormData};
+}
+test('compact Add bus retains the form after failure and prevents duplicate submissions',async()=>{
+ const c={state:seed(),garage:'demo-north',me:{role:'garage_manager'},page:'fleet/new'};let fail=true,calls=0,release;
+ const h=harness(c,async(action,values)=>{assert.equal(action,'vehicle');calls++;if(fail)throw Error('Connection lost');await new Promise(r=>release=r);return saveVehicle(c.state,c.garage,values);});
+ try{
+  const html=fleetFlowView(c);assert.match(html,/Fleet number/);assert.match(html,/Inspection planning/);assert.doesNotMatch(html,/Ready to add this bus|Step [0-9]/);
+  await h.submit();assert.equal(h.error.textContent,'Connection lost');assert.equal(c.page,'fleet/new');assert.equal(fleetBusy(),false);
+  fail=false;const pending=h.submit();assert.equal(fleetBusy(),true);assert.equal(h.button.disabled,true);await h.submit();assert.equal(calls,2);release();await pending;
+  const saved=c.state.vehicles.find(v=>v.id==='DEMO-901');assert.equal(saved.status,'Awaiting inspection');assert.equal(saved.warranty,'Unknown');assert.equal(saved.due,'');assert.deepEqual(saved.history,[]);assert.equal(c.page,'vehicle/DEMO-901');
+  c.me.role='mechanic';await h.submit();assert.equal(calls,2);
+ }finally{h.restore();}
 });
-
 test('Add bus reconciles a saved bus after a lost response without creating a duplicate',async()=>{
- const listeners={};globalThis.document={addEventListener:(k,f)=>listeners[k]=f};globalThis.window={addEventListener:()=>{}};
- const c={state:seed(),garage:'demo-north',me:{role:'garage_manager'},page:'fleet/new'};const serverState=seed();let html='',calls=0;const render=()=>{html=fleetFlowView(c);};
- setupFleet({context:()=>c,render,notify:()=>{},reload:async()=>{c.state=serverState;},mutation:async(_action,values)=>{calls++;saveVehicle(serverState,c.garage,values);throw Object.assign(Error('Refresh the garage.'),{status:409});}});
- const click=async dataset=>{const el={dataset,hasAttribute:k=>Object.hasOwn(dataset,k.replace(/^data-/,'').replace(/-([a-z])/g,(_,x)=>x.toUpperCase()))};await listeners.click({target:{closest:()=>el}});};
- await click({fleetAnother:''});listeners.input({target:{id:'fleet-value',dataset:{fleetField:'id'},value:'DEMO-902'}});await click({fleetNext:''});await click({fleetSkip:''});await click({fleetModel:'SG271+ demonstration vehicle'});await click({fleetUnknown:''});await click({fleetSave:''});assert.match(html,/Get latest records/);
- await click({fleetRefresh:''});assert.match(html,/Bus added/);assert.equal(calls,1);assert.equal(c.state.vehicles.filter(v=>v.id==='DEMO-902').length,1);
+ const c={state:seed(),garage:'demo-north',me:{role:'garage_manager'},page:'fleet/new'},server=seed();let calls=0;
+ const h=harness(c,async(_action,values)=>{calls++;saveVehicle(server,c.garage,values);throw Object.assign(Error('Refresh the garage.'),{status:409});},async()=>c.state=server);
+ try{await h.submit();assert.equal(c.page,'vehicle/DEMO-901');assert.equal(calls,1);assert.equal(c.state.vehicles.filter(v=>v.id==='DEMO-901').length,1);assert.match(h.messages[0],/saved/);}finally{h.restore();}
 });

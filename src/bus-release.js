@@ -38,7 +38,7 @@ export function releaseCommand(s,g,u,action,v,id){
  if(notes.length<5||notes.length>2000)throw Error('Record supporting evidence or a reason (5–2000 characters).');
  if(action==='road_documents'){
   if(!manager(u))throw Error('Manager access required.');
-  const next={};for(const key of ['cvrt','tax']){const expires=String(v[key+'Expires']||''),reference=String(v[key+'Reference']||'').trim();if(!validDate(expires)||reference.length<3||reference.length>500)throw Error('Enter valid CVRT and tax expiry dates with evidence references.');next[key]={expires,reference};}
+  const next=structuredClone(b.roadDocuments||{});let changed=false;for(const key of ['cvrt','tax']){if(v.document&&v.document!==key)continue;const expires=String(v[key+'Expires']||''),reference=String(v[key+'Reference']||'').trim();if(!expires&&!reference)continue;if(!validDate(expires)||reference.length<3||reference.length>500)throw Error('Enter the document expiry date and its evidence reference.');next[key]={expires,reference};changed=true;}if(!changed)throw Error('Enter a document expiry date and evidence reference.');
   (b.audit??=[]).push({action:'Road documents updated',at,actor,reason:notes,previous:structuredClone(b.roadDocuments||{}),value:next});b.roadDocuments=next;return {id};
  }
  s.releaseEvents??=[];

@@ -9,7 +9,7 @@ export default endpoint(async req=>{
  if(req.method==='GET'){
   const id=p.get('id');if(!/^[a-f0-9-]{36}$/.test(id||''))fail('Document unavailable.',404);
   const sql=db(),[row]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${g.organisation_id}`;
-  const sop=row?.data.sops?.find(x=>x.sourceId===id);
+  const sop=row?.data.sops?.find(x=>x.sourceId===id||(canAuthor(u)&&x.draftRevision?.sourceId===id));
   if(!sop||(!canAuthor(u)&&!sopPublished(sop)))fail('Document unavailable.',404);
   const [doc]=await sql`SELECT content FROM sop_documents WHERE id=${id} AND organisation_id=${g.organisation_id} AND sop_id=${sop.id}`;
   if(!doc)fail('Document unavailable.',404);
@@ -33,10 +33,11 @@ export default endpoint(async req=>{
   if(!row||row.version!==expected)fail('Content changed. Reload and retry.',409);
   const sop=row.data.sops?.find(x=>x.id===p.get('sop'));
   if(!sop)fail('SOP unavailable.',404);
-  if(sopPublished(sop))fail('Save this SOP as a draft before replacing its source PDF.',409);
-  const id=crypto.randomUUID(),name=String(p.get('name')||'SOP source.pdf').slice(0,180),{audit,...previous}=sop;
-  (sop.audit??=[]).push({action:'Replace source PDF',actor:workerName(u),at:new Date().toISOString(),previous});
-  Object.assign(sop,{sourceId:id,sourceName:name,version:sop.version+1,updated:new Date().toISOString(),updatedBy:workerName(u)});
+  if(sopPublished(sop)&&!sop.draftRevision)fail('Save a draft revision before changing its source PDF.',409);
+  const target=sop.draftRevision||sop;
+  const id=crypto.randomUUID(),name=String(p.get('name')||'SOP source.pdf').slice(0,180),{audit,...previous}=target;
+  (target.audit??=[]).push({action:'Replace source PDF',actor:workerName(u),at:new Date().toISOString(),previous});
+  Object.assign(target,{sourceId:id,sourceName:name,version:target.version+1,updated:new Date().toISOString(),updatedBy:workerName(u)});
   await sql`INSERT INTO sop_documents(id,organisation_id,sop_id,name,content,uploaded_by) VALUES(${id},${g.organisation_id},${sop.id},${name},${bytes.toString('base64')},${u.id})`;
   const [saved]=await sql`UPDATE organisation_content SET data=${JSON.stringify(row.data)}::jsonb,version=version+1 WHERE organisation_id=${g.organisation_id} AND version=${expected} RETURNING version`;
   if(!saved)fail('Content changed. Reload and retry.',409);

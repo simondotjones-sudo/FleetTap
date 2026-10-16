@@ -1,5 +1,24 @@
 # FleetTap
 
+## Workflow simplification — 1.16.10.26.27
+
+Implemented the agreed page-by-page usability review while retaining Gellix, the black/yellow identity, six home tiles, floating navigation and meaningful status colours.
+
+- Navigation: Menu and Help no longer rebuild the current page. Back follows the current journey. Typed forms and guided work recover within the same browser tab after reload or session expiry; drafts are scoped to the account and garage, contain no passwords or file bytes, and clear after successful saves or explicit sign-out. Files that have not uploaded must be reattached.
+- Report and Faults: location/context is required, immediate responses support multiple selections, edits return to review, and saved records link to the original issue and related work. New record/action titles include the reported issue.
+- Actions and reviews: handover keeps an action open; completed work goes to review. Supervisors can return actions and inspections with a reason. Review queues distinguish ready work from work still in progress and lead to the next review or release requirements after closure.
+- Garage Today and My Jobs: compact Team rows, smaller counts, Day plan, optional briefings, future jobs separated, linked work shown on job details, and inspections outside the job plan surfaced. Scheduling an existing inspection reuses it; allocating a repair job also allocates its unassigned corrective action without overriding an existing owner.
+- Fleet, release and history: one-form Add bus, models in use first, consistent unavailable-for-service wording, direct blocker actions/owners, independent CVRT and tax evidence forms, grouped history with readable measurements, and clear warranty dates.
+- Inspections and checklists: unfinished sections first, total progress, explicit instruction-acknowledgement settings, inline full instructions, direct rechecks, and a return to the linked job. Checklist OK answers advance immediately; exceptions request notes and completion leads to a review screen.
+- SOPs and controls: saving a published SOP as a draft now prepares a private revision while keeping the published version and PDF available. Publishing replaces it after approval; withdrawal is a separate explicit action. PDF attachment is available during creation. Personal acknowledgements, team status and measurement rechecks have distinct views.
+- Management: six focused Manage tiles, searchable People with separate settings, simpler Performance views and dates, optional detail panels, preserved individual schedule exceptions by default, and delivered/future Roadmap features distinguished. Help describes available functions without implying an AI chat service.
+
+The server continues to enforce authenticated roles, tenant/garage scope, atomic versions, audited commands, protected documents and explicit supervisor release. The PM3 regeneration source conflict remains blocked. No provider migration or production-data transformation is part of this release.
+
+Validation: all 103 Node regression tests and the production build passed; isolated database checks across all five roles, registration lookup, return-for-work commands, published/draft SOP visibility and private PDFs; browser checks across 44 pages at 1280px, 820px and 390px, including save/recovery, linked work, fault reporting, checklist submission/return, action handover/closure, and registration. Browser workflow tests use synthetic local records, never production credentials.
+
+The entries below describe earlier releases and their behaviour at that time.
+
 ## Content layout correction — 1.15.10.26.15
 
 Removed the Organisation SOPs subtitle and shortened its tile captions. Organisation Checklists now uses the same compact six-tile layout, with a separate checklist library and a matching editor. Saving a checklist returns to its library. Short desktop viewports use tighter spacing so the tiles stay above the floating navigation. No permissions, storage or AI behaviour changed.

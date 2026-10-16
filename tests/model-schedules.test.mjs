@@ -96,7 +96,7 @@ test('Fleet opens on Overview, Schedules opens on the list, and model controls r
  const c={state:seed(),garage,me:{role:'garage_manager'},page:'fleet'};rule(c.state);
  const html=fleetFlowView(c);assert.match(html,/<h1>Fleet overview<\/h1>/);assert.doesNotMatch(html,/<p>Fleet<\/p>/);assert.match(html,/data-go="fleet" aria-pressed="true">Overview/);
  c.page='fleet/list';assert.match(fleetFlowView(c),/<h1>Choose a bus/);
- c.page='fleet/models';assert.match(fleetFlowView(c),/AX|EV|EA|WH/);
+ c.page='fleet/models';assert.match(fleetFlowView(c),/>SG</);assert.match(fleetFlowView(c),/Show all models/);assert.doesNotMatch(fleetFlowView(c),/>AX</);
  c.page='fleet/model/SG';assert.doesNotMatch(fleetFlowView(c),/PA1|Other garage/);
  c.page='schedules';let schedules=adminToolsView(c);assert.match(schedules,/Create schedule/);assert.doesNotMatch(schedules,/data-admin-form="schedule"|<p>Administration<\/p>/);assert.match(schedules,/SG model/);
  c.page='schedules/new';assert.match(adminToolsView(c),/data-admin-form="schedule"/);
@@ -124,7 +124,7 @@ test('schedule form preview uses bus histories and builds a validated model comm
  const values={scope:'model',modelType:'SG',vehicle:'',interval:'1',unit:'months',basis:'history',date:'2026-10-31',reference:'',enabled:'on',replaceOverrides:'on'};
  const elements=Object.fromEntries(Object.entries(values).map(([k,value])=>[k,{value,checked:value==='on',removeAttribute(){}}]));
  const nodes=new Map();const form={elements,querySelector:selector=>{if(!nodes.has(selector))nodes.set(selector,{firstChild:{textContent:''}});return nodes.get(selector);},querySelectorAll:()=>[]};
- const original=JSON.stringify(s);schedulePreview(form,{state:s,garage});assert.equal(JSON.stringify(s),original);assert.match(nodes.get('[data-schedule-preview]').textContent,/28.02.2026 – 05.03.2026/);
+ const original=JSON.stringify(s);schedulePreview(form,{state:s,garage});assert.equal(JSON.stringify(s),original);assert.match(nodes.get('[data-schedule-preview]').textContent,/28 Feb 2026 – 5 Mar 2026/);
  assert.match(nodes.get('[data-schedule-coverage]').textContent,/2 buses selected/);
  const command=scheduleValues(values);saveSchedule(s,garage,command,actor);
  assert.equal(modelSchedule(s,garage,'SG').basis,'history');assert.equal(scheduleStatus(s,garage,'SG621').due,'2026-03-05');

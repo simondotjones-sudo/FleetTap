@@ -37,6 +37,9 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await call(auth,{action:'login',identifier:'id-1',organisation_code:org.login_code,password})).status,200);
   const code=await call(admin,{action:'registration_code',garage_id:garage.id,operation:'rotate'},cookies.garage_manager);assert.equal(code.status,200);
   assert.equal((await call(admin,{action:'registration_code',garage_id:south.id,operation:'rotate'},cookies.garage_manager)).status,403);
+  const lookup=await call(auth,{action:'registration_garage',code:code.data.code});assert.equal(lookup.status,200);assert.deepEqual(lookup.data,{garage:'North',organisation:'Roles test'});
+  assert.equal((await call(auth,{action:'registration_garage',code:'invalid'})).status,400);
+  assert.equal((await call(auth,{action:'registration_garage',code:'0000000000000000'})).status,400);
   const signup={action:'register',code:code.data.code,name:'New employee',employee_id:'EMP-200',password,role:'platform_admin',organisation_id:otherOrg.id,garage_id:foreign.id};
   assert.equal((await call(auth,signup)).status,201);
   assert.equal((await call(auth,signup)).status,409);
@@ -44,6 +47,7 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   const publicAdmin=await call(admin,null,cookies.garage_manager);assert.doesNotMatch(JSON.stringify(publicAdmin.data),/code_hash|password_hash|credential_version|token_hash/);
   assert.equal((await call(admin,{action:'registration_code',garage_id:garage.id,operation:'disable'},cookies.garage_manager)).status,200);
   assert.equal((await call(auth,{...signup,employee_id:'EMP-201'})).status,409);
+  assert.equal((await call(auth,{action:'registration_garage',code:code.data.code})).status,400);
   assert.equal((await call(auth,{action:'login',identifier:'EMP-200',password})).status,200);
   // Duplicate employee IDs may exist in different organisations; the organisation code resolves them.
   await sql`INSERT INTO users(name,employee_id,role,organisation_id,garage_id,password_hash) VALUES('Other employee','EMP-200','mechanic',${otherOrg.id},${foreign.id},${encoded})`;
@@ -75,6 +79,10 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('close_record',{notes:'Evidence checked'},{kind:'faults',id:faultId},'mechanic')).status,403);
   assert.equal((await write('close_record',{notes:'Evidence checked'},{kind:'faults',id:faultId},'supervisor')).status,400);
   assert.equal((await write('action',{evidence:'Replaced light, tested operation'},{id:actionId},'mechanic')).status,200);
+  assert.equal((await write('action_return',{notes:'Check the light again'},{id:actionId},'mechanic')).status,403);
+  assert.equal((await write('action_return',{notes:'Check the light again'},{id:actionId},'supervisor')).status,200);
+  assert.equal((await write('action',{kind:'handover',evidence:'Replacement fitted; next shift to retest'},{id:actionId},'mechanic')).data.state.actions[0].status,'Open');
+  assert.equal((await write('action',{evidence:'Light tested and repair complete'},{id:actionId},'mechanic')).status,200);
   assert.equal((await write('close_record',{notes:'Checked repair and tested light'},{kind:'actions',id:actionId},'supervisor')).status,200);
   const closed=await write('close_record',{notes:'Verified repaired light'},{kind:'faults',id:faultId},'supervisor');assert.equal(closed.status,200);assert.match(closed.data.state.faults[0].closedBy,/supervisor/);assert.notEqual(closed.data.state.vehicles[0].status,'Released');
   const report=await write('record',{title:'Garage incident',description:'Spill made safe'},{kind:'reports'},'mechanic');assert.equal(report.status,200);const rid=report.data.result.id,aid=(await call(workspace,null,cookies.garage_manager,'?garage='+garage.id)).data.state.actions.find(a=>a.source===rid).id;
@@ -88,6 +96,9 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   // Use synthetic approved template to exercise positive sign-off, keeping real PM3 source conflict untouched.
   const [row]=await sql`SELECT data FROM garage_records WHERE garage_id=${garage.id}`;const ins=row.data.inspections.find(i=>i.id===iid);ins.status='Awaiting review';ins.created='2026-10-15T00:00:00.000Z';ins.templateSnapshot.tasks=[{id:'approved',text:'Approved check',section:'Test'}];ins.answers={approved:{result:'OK'}};
   await sql`UPDATE garage_records SET data=${JSON.stringify(row.data)}::jsonb WHERE garage_id=${garage.id}`;
+  assert.equal((await write('inspection_return',{notes:'Please verify this measurement'},{id:iid},'mechanic')).status,403);
+  assert.equal((await write('inspection_return',{notes:'Please verify this measurement'},{id:iid},'supervisor')).status,200);
+  assert.equal((await write('submit',{notes:'Measurement verified'},{id:iid},'mechanic')).status,200);
   assert.equal((await write('inspection_manage',{operation:'complete',reason:'Review complete',date:'2026-10-15'},{id:iid},'supervisor')).status,200);
   const cbody={kind:'sops',organisation_id:org.id,version:0,values:{title:'Safe handover',steps:'Check area\nHand over',instructions:'Full approved handover procedure.'}};
   for(const role of ['garage_manager','supervisor','mechanic'])assert.equal((await call(content,cbody,cookies[role])).status,403);

@@ -20,9 +20,19 @@ export function addRecord(state,kind,values){
  const id=`FT-${kind==='faults'?'F':'R'}-${crypto.randomUUID().slice(0,8)}`;
  const record={...values,id,title:values.title.trim(),description:values.description.trim(),status:'Open',created:new Date().toISOString()};
  state[kind].unshift(record);
- state.actions.unshift({id:`FT-A-${crypto.randomUUID().slice(0,8)}`,garage:values.garage,vehicle:values.vehicle,title:`Review: ${record.title}`,source:id,owner:'Supervisor',status:'Open',evidence:''});
+ state.actions.unshift({id:`FT-A-${crypto.randomUUID().slice(0,8)}`,garage:values.garage,vehicle:values.vehicle,title:record.title,source:id,owner:'Unassigned',status:'Open',evidence:'',created:record.created});
  return record;
 }
-export function submitAction(state,id,evidence){const action=state.actions.find(a=>a.id===id);if(!action)throw Error('Action not found');if(!evidence.trim())throw Error('Describe the work completed.');action.evidence=evidence.trim();action.status='Awaiting review';}
+export function submitAction(state,id,evidence,kind='work',actor=''){
+ const action=state.actions.find(a=>a.id===id);if(!action)throw Error('Action not found');
+ if(action.status!=='Open')throw Error('This action is not open.');
+ if(!['work','handover'].includes(kind))throw Error('Choose work completed or shift handover.');
+ if(!evidence.trim())throw Error('Describe the work or next step.');
+ const at=new Date().toISOString();
+ (action.audit??=[]).push({action:kind==='handover'?'Handover':'Work submitted',actor,at,evidence:evidence.trim(),previous:{status:action.status,evidence:action.evidence}});
+ action.evidence=evidence.trim();action.status=kind==='handover'?'Open':'Awaiting review';action.updatedAt=at;
+ if(kind==='handover')action.nextStep=evidence.trim();else{delete action.nextStep;delete action.returnNotes;}
+ return {id:action.id};
+}
 
 export function savedRecordRequest(state,kind,garage,actor,requestId){if(!requestId||!['reports','faults'].includes(kind))return null;return state[kind].find(r=>r.garage===garage&&r.createdBy===actor&&r.requestId===requestId)||null;}

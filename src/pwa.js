@@ -89,7 +89,7 @@ document.addEventListener('keydown', event => {
 function updateConnection() {
   const status = document.querySelector('#connection-status');
   status.hidden = navigator.onLine;
-  status.textContent = navigator.onLine ? '' : 'You’re offline. Keep this screen open and reconnect before saving.';
+  status.textContent = navigator.onLine ? '' : 'Offline — new entries are not saved to the garage. Keep this screen open, reconnect, then retry Save.';
 }
 window.addEventListener('online', () => { updateConnection(); registration?.update().catch(() => {}); });
 window.addEventListener('offline', updateConnection);

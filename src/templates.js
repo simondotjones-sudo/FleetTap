@@ -47,7 +47,7 @@ export function editTemplate(state,values,actor){
    if(t.tasks.length>=300&&!old)throw Error('A template can contain up to 300 questions.');
    let fields=old?.fields;
    // Existing source measurement tolerances remain attached when editing wording.
-   const item={...old,id:old?.id||'q-'+crypto.randomUUID(),section,number:old?.number||String(t.tasks.filter(x=>x.section===section).length+1),page,question,text:instruction,conditional:!!values.conditional,blocked:false,...(fields?{fields}: {})};
+   const item={...old,id:old?.id||'q-'+crypto.randomUUID(),section,number:old?.number||String(t.tasks.filter(x=>x.section===section).length+1),page,question,text:instruction,conditional:!!values.conditional,requiresAcknowledgement:values.requiresAcknowledgement===undefined?!!old?.requiresAcknowledgement:!!values.requiresAcknowledgement,blocked:false,...(fields?{fields}: {})};
    if(old)t.tasks[n]=item;else t.tasks.push(item);
    const order=[...new Set(t.tasks.map(x=>x.section))];t.tasks.sort((a,b)=>order.indexOf(a.section)-order.indexOf(b.section));
    record(t,actor,old?'Edit question':'Add question',old||null);

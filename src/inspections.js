@@ -69,7 +69,7 @@ export function submitInspection(state,id,garage,notes){
  const i=inspectionFor(state,id,garage);if(i.status!=='In progress')throw Error('Inspection already submitted.');
  if(Object.values(i.rechecks||{}).some(x=>!x.resolvedAt))throw Error('Resolve every outstanding recheck before submitting.');
  if(tasksFor(i).some(t=>!t.blocked&&!i.answers[t.id]))throw Error('Record a result for every available item before submitting.');
- i.notes=notes.trim();i.status='Awaiting review';i.submitted=new Date().toISOString();
+ i.notes=notes.trim();delete i.returnNotes;i.status='Awaiting review';i.submitted=new Date().toISOString();
  i.audit.push({action:'Submit for review',at:i.submitted,actor:i.amendment?.actor||i.craftworker});
  if(state.actions.some(a=>a.source===i.id&&a.garage===garage&&a.status==='Open'))return;
  state.actions.unshift({id:'FT-A-'+crypto.randomUUID().slice(0,8),garage,vehicle:i.vehicle,title:'Review PM3 demonstration — blocked regeneration item',source:i.id,owner:'Demo supervisor',status:'Open',evidence:''});
@@ -80,4 +80,10 @@ export function saveVehicle(state,garage,values){
  if(state.vehicles.some(v=>v.id===id&&v.garage===garage))throw Error('This fleet number already exists.');
  if(values.due&&!validDate(values.due))throw Error('Choose a valid inspection date.');
  const v={id,garage,name:String(values.name||'').trim().slice(0,120),model:values.model.trim(),modelType:modelTypeForSave({...values,id}),registration:values.registration?.trim()||'',status:'Awaiting inspection',warranty:'Unknown',history:[],due:values.due||'',created:new Date().toISOString()};state.vehicles.push(v);return v;
+}
+
+export function returnInspection(state,id,garage,values,actor){
+ const i=inspectionFor(state,id,garage);if(i.status!=='Awaiting review')throw Error('Choose an inspection awaiting review.');
+ const notes=String(values.notes||'').trim();if(notes.length<5||notes.length>4000)throw Error('Explain the corrections needed (5–4000 characters).');
+ i.audit.push({action:'Returned for work',actor,at:new Date().toISOString(),reason:notes,previous:{status:i.status}});i.status='In progress';i.returnNotes=notes;return {id};
 }

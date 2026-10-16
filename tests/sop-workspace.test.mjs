@@ -14,12 +14,12 @@ test('drafts require review to publish and no browser values can set source or a
  const published=saveContent(data,'sops',{...v,approved:'yes',sourceId:'forged',approvedBy:'forged'},'Trusted admin');
  assert.equal(published.sourceId,null);assert.equal(published.approvedBy,'Trusted admin');
  assert.equal(visibleContent(data).sops.length,1);assert.equal(visibleContent(data).sops[0].audit,undefined);
- const next=saveContent(data,'sops',{...v,status:'Draft'},'Admin');assert.equal(next.approvedAt,null);assert.equal(next.audit[1].previous.approvedBy,'Trusted admin');assert.equal(visibleContent(data).sops.length,0);
+ const next=saveContent(data,'sops',{...v,status:'Draft'},'Admin');assert.equal(next.approvedAt,null);assert.equal(next.audit[1].previous.approvedBy,'Trusted admin');assert.equal(visibleContent(data).sops.length,1);assert.equal(visibleContent(data).sops[0].draftRevision,undefined);assert.equal(data.sops[0].draftRevision.status,'Draft');
 });
 test('SOP opens on overview, exposes source safely, blocks draft deep links and retains PM3 warning',()=>{
  const data={sops:[]},x=saveContent(data,'sops',{title:'Example <SOP>',summary:'Overview <text>',steps:'First step',instructions:'Full text'},'Admin');
  const c={page:'org-sop/'+x.id,content:data,garage:'demo-north',organisation:'org',state:seed(),me:{role:'organisation_admin'}};
- let html=sopWorkspaceView(c);assert.match(html,/Overview &lt;text&gt;/);assert.match(html,/Start guide/);assert.match(html,/No source PDF attached/);assert.doesNotMatch(html,/Step 1 of/);
+ let html=sopWorkspaceView(c);assert.match(html,/Overview &lt;text&gt;/);assert.match(html,/Start guide/);assert.match(html,/Attach PDF/);assert.doesNotMatch(html,/Step 1 of/);
  assert.match(sopWorkspaceView({...c,me:{role:'mechanic'}}),/SOP unavailable/);
  assert.match(sopWorkspaceView({...c,page:'org-sop/'+x.id+'/0',me:{role:'mechanic'}}),/SOP unavailable/);
  x.status='Published';x.sourceId='source';x.sourceName='<file>.pdf';html=sopWorkspaceView(c);assert.match(html,/View source PDF/);assert.match(html,/&lt;file&gt;.pdf/);assert.match(html,/sop-documents\?garage=demo-north&amp;id=source/);

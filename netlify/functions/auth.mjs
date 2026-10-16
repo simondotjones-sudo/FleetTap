@@ -16,6 +16,14 @@ export default endpoint(async(req,context)=>{
   await sql`UPDATE users SET last_login=now() WHERE id=${u.id}`;
   return json({user:safeUser(u)},200,{'Set-Cookie':setCookie(token)});
  }
+ if(b.action==='registration_garage'){
+  const code=String(b.code||'').replace(/[ -]/g,'').trim().toUpperCase();
+  if(!/^[A-F0-9]{16}$/.test(code))fail('Enter the garage registration code from your manager.');
+  await rateLimit('registration:'+hash(code),30);
+  const [g]=await sql`SELECT g.name AS garage,o.name AS organisation FROM registration_codes c JOIN garages g ON g.id=c.garage_id JOIN organisations o ON o.id=g.organisation_id WHERE c.code_hash=${hash(code)} AND c.enabled AND o.active`;
+  if(!g)fail('This garage code is unavailable. Ask your manager for the current code.');
+  return json(g);
+ }
  if(b.action==='register'){
   const code=String(b.code||'').replace(/[ -]/g,'').trim().toUpperCase(),email=String(b.email||'').trim().toLowerCase()||null,employee=String(b.employee_id||'').trim()||null,name=String(b.name||'').trim();
   if(!/^[A-F0-9]{16}$/.test(code))fail('Enter a valid garage registration code.');

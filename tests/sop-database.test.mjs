@@ -41,7 +41,12 @@ test('SOP lifecycle and private PDFs: publication, roles, organisation scope, st
   const visible=(await read()).content.sops[0];assert.equal(visible.title,'Safe handover');assert.equal(visible.audit,undefined);assert.equal(visible.sourceId,doc.id);
   for(const [role,garage] of [['staff',g.id],['south',south.id]]){r=await get(role,garage);assert.equal(r.status,200);assert.match(r.headers.get('cache-control'),/private, no-store/);assert.equal(await r.text(),pdf.toString());}
   assert.equal((await upload()).status,409); // Source cannot change while published.
-  assert.equal((await save({...values,status:'Draft'})).status,200);assert.equal((await get()).status,404);assert.equal((await read()).content.sops.length,0);
+  assert.equal((await save({...values,title:'Revised handover',status:'Draft'})).status,200);
+  assert.equal((await get()).status,200);assert.equal((await read()).content.sops[0].title,'Safe handover');assert.equal((await read()).content.sops[0].draftRevision,undefined);
+  const revised=await upload();assert.equal(revised.status,201);const revisionDoc=await revised.json();version=revisionDoc.version;
+  assert.equal((await get('staff',g.id,revisionDoc.id)).status,404);assert.equal((await get('admin',g.id,revisionDoc.id)).status,200);assert.equal((await get()).status,200);
+  assert.equal((await save({...values,title:'Revised handover'})).status,200);assert.equal((await read()).content.sops[0].title,'Revised handover');assert.equal((await get('staff',g.id,revisionDoc.id)).status,200);assert.equal((await get()).status,404);
+  assert.equal((await save({id,operation:'withdraw',reason:'Superseded by an approved procedure'})).status,200);assert.equal((await read()).content.sops.length,0);assert.equal((await get('staff',g.id,revisionDoc.id)).status,404);
   const [old]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${org.id}`;assert.ok(old.data.sops[0].audit.some(a=>a.previous.sourceId===doc.id));
   await sql`UPDATE users SET active=false,credential_version=credential_version+1 WHERE id=${users.admin}`;
   assert.equal((await upload()).status,401);assert.equal((await save(values)).status,401);

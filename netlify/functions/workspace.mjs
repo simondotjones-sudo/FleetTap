@@ -3,14 +3,14 @@ import {acknowledgeControl,requireControls,visibleControls} from '../../src/acti
 import {performanceCommand,visiblePerformance} from '../../src/performance-model.js';
 import {operationsCommand,visibleOperations} from '../../src/garage-operations.js';
 import {visibleActionState,canWorkAction} from '../../src/action-assignment.js';
-import {closeRecord} from '../../src/reviews.js';
+import {closeRecord,returnAction} from '../../src/reviews.js';
 import {checklistCommand,visibleContent} from '../../src/content-model.js';
 import {workerName} from '../../src/roles.js';
 import {validateAttachments} from '../../server/photos.mjs';
 import {db,actor,body,json,garageFor,endpoint,fail,safeUser} from '../../server/runtime.mjs';
 import {canManage,canAuthor,canReview} from '../../server/security.mjs';
 import {addRecord,submitAction,savedRecordRequest} from '../../src/model.js';
-import {startInspection,recordRecheck,saveAnswer,submitInspection,saveVehicle} from '../../src/inspections.js';
+import {returnInspection,startInspection,recordRecheck,saveAnswer,submitInspection,saveVehicle} from '../../src/inspections.js';
 import {editTemplate} from '../../src/templates.js';
 import {editVehicle,manageInspection} from '../../src/inspection-admin.js';
 import {saveSchedule} from '../../src/scheduling.js';
@@ -63,6 +63,8 @@ export default endpoint(async(req)=>{
    }
    result=operationsCommand(state,b.garage,u,b.action,v,b.id,assignee);break;
   }
+  case 'inspection_return':if(!canReview(u))fail('Supervisor access required.',403);result=returnInspection(state,b.id,b.garage,v,worker);break;
+  case 'action_return':if(!canReview(u))fail('Supervisor access required.',403);result=returnAction(state,b.garage,b.id,v,worker);break;
   case 'close_record':if(!canReview(u))fail('Supervisor access required.',403);result=closeRecord(state,b.garage,b.kind,b.id,v,worker);break;
   case 'checklist_start':case 'checklist_answer':case 'checklist_submit':case 'checklist_signoff':case 'checklist_return':{if(['checklist_signoff','checklist_return'].includes(b.action)&&!canReview(u))fail('Supervisor access required.',403);const [content]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${g.organisation_id}`;result=checklistCommand(state,b.garage,b.action,v,b.id,content?.data||{},worker);break;}
   case 'vehicle_edit':if(!canManage(u))fail('Administrator access required.',403);result=editVehicle(state,b.garage,b.id,v,worker);break;
@@ -83,7 +85,7 @@ export default endpoint(async(req)=>{
    (a.audit??=[]).push({action:'Assignment',at:new Date().toISOString(),actor:worker,previous:{assignedTo:a.assignedTo||null,owner:a.owner||''},assignedTo,owner});
    a.assignedTo=assignedTo;a.owner=owner;result={id:a.id};break;
   }
-  case 'action':{const a=state.actions.find(a=>a.id===b.id&&a.garage===b.garage&&!a.deletedAt);if(!a)fail('Action unavailable.');if(!canWorkAction(a,u))fail('This action is not assigned to you.',403);if(a.status!=='Open')fail('This action is already awaiting review.');submitAction(state,b.id,String(v.evidence||'').slice(0,4000));break;}
+  case 'action':{const a=state.actions.find(a=>a.id===b.id&&a.garage===b.garage&&!a.deletedAt);if(!a)fail('Action unavailable.');if(!canWorkAction(a,u))fail('This action is not assigned to you.',403);if(a.status!=='Open')fail('This action is already awaiting review.');result=submitAction(state,b.id,String(v.evidence||'').slice(0,4000),v.kind||'work',worker);break;}
   default:fail('Unknown workspace request.');
  }
  }catch(e){if(e.status)throw e;fail(e.message);}

@@ -53,7 +53,7 @@ test('In progress filter retains overdue context and leaves fleet totals indepen
   assert.equal(summary(),before);
   listeners.change({target:{dataset:{scheduleFilter:'status'},value:'Overdue'}});
   assert.match(html,/>IDLE</);
-  assert.doesNotMatch(html,/>ACTIVE</);
+  assert.match(html,/>ACTIVE</);
   assert.equal(summary(),before);
  }finally{delete globalThis.document;}
 });

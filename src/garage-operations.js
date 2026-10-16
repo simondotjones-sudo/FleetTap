@@ -46,6 +46,8 @@ export function operationsCommand(s,g,u,action,v={},id='',assignee=null,now=new 
   }
   if(v.faultId){fault=(s.faults||[]).find(f=>f.garage===g&&f.id===v.faultId&&f.vehicle===v.vehicle&&!f.deletedAt&&f.status!=='Closed');requireThat(fault,'Choose an open fault for this bus.');requireThat(!garageJobs(s,g).some(j=>j.faultId===fault.id&&jobOpen(j)),'This fault already has an open job.');}
   const j={id:crypto.randomUUID(),garage:g,vehicle:v.vehicle,type:v.type,title,description:text(v.description,4000),date:v.date,time:v.time||'',priority:v.priority,sourceDue:due,faultId:fault?.id||null,assigneeId:assignee?.id||null,assigneeName:assignee?.name||'',status:assignee?'Assigned':'Unassigned',createdAt:at,createdBy:u.id,requestId:v.requestId||null,audit:[]};
+  if(j.type==='Scheduled inspection'){const existing=s.inspections.find(i=>i.garage===g&&i.vehicle===j.vehicle&&!i.deletedAt&&i.status==='In progress');if(existing)j.inspectionId=existing.id;}
+  if(fault&&assignee)for(const a of s.actions||[])if(a.garage===g&&a.source===fault.id&&a.status==='Open'&&!a.assignedTo){a.assignedTo=assignee.id;a.owner=assignee.name;(a.audit??=[]).push({action:'Assigned with repair job',at,actor,assignedTo:assignee.id,jobId:j.id});}
   s.jobs.push(j);audit(j,'Created');return j;
  }
  const j=s.jobs.find(j=>j.id===id&&j.garage===g);requireThat(j,'Job unavailable in this garage.');

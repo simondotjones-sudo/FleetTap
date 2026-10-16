@@ -58,7 +58,7 @@ test('Dublin boundaries handle DST and reject ambiguous times, and bus rename re
 });
 test('dashboard, warranty editor and CSV preserve scope and escape untrusted text',()=>{
  const s=state();period(s);const c={state:s,content:content(),garage:g,organisation:'org',me:admin,garages:[{id:g,name:'North garage'}],page:'performance'};
- assert.match(performanceView(c),/Management visibility/);assert.match(performanceView(c),/North garage/);c.page='performance/warranty/SG1';assert.match(performanceView(c),/Individual extension/);c.me=worker;assert.match(performanceView(c),/Manager access required/);
+ assert.match(performanceView(c),/<h1>Performance<\/h1>/);assert.match(performanceView(c),/North garage/);c.page='performance/warranty/SG1';assert.match(performanceView(c),/Individual extension/);c.me=worker;assert.match(performanceView(c),/Manager access required/);
  const r=report(s);r.rows[0].bus.id='=FORMULA';assert.match(reportCSV(r),/"'=FORMULA"/);
 });
 test('elapsed reporting respects the 25-hour Dublin autumn clock-change day',()=>{

@@ -2,7 +2,7 @@ import {controlFields} from './active-controls.js';
 import {addRecord} from './model.js';
 export const sopPublished=x=>!x.status||x.status==='Published';
 export function visibleContent(data={},canAuthor=false){
- const clean=x=>{const {audit,...entry}=x;return entry;};
+ const clean=x=>{const {audit,draftRevision,...entry}=x;return entry;};
  return {warrantyModels:(data.warrantyModels||[]).map(x=>canAuthor?x:clean(x)),sops:(data.sops||[]).filter(x=>canAuthor||sopPublished(x)).map(x=>canAuthor?x:clean(x)),checklists:(data.checklists||[]).map(x=>canAuthor?x:clean(x))};
 }
 // Organisation-authored content is shared by all of its garages.
@@ -10,6 +10,8 @@ export function saveContent(data,kind,values,actor){
  if(!['sops','checklists'].includes(kind))throw Error('Choose SOPs or checklists.');
  const list=data[kind]??=[],old=values.id?list.find(x=>x.id===values.id):null;
  if(values.id&&!old)throw Error('Content unavailable.');
+ if(kind==='sops'&&values.operation==='withdraw'){if(!old||!sopPublished(old))throw Error('Choose a published SOP.');const reason=String(values.reason||'').trim();if(reason.length<5)throw Error('Explain why this SOP is being withdrawn.');const {audit,draftRevision,...previous}=old;const entry={...previous,status:'Draft',required:false,version:old.version+1,updated:new Date().toISOString(),updatedBy:actor,audit:[...(audit||[]),{action:'Withdraw',actor,at:new Date().toISOString(),reason,previous}]};list[list.indexOf(old)]=entry;return entry;}
+ const working=old?.draftRevision||old;
  const title=String(values.title||'').trim(),instructions=String(values.instructions||'').trim();
  const status=kind==='sops'?(values.status||old?.status||'Draft'):'Published';
  if(!['Draft','Published'].includes(status))throw Error('Choose Draft or Published.');
@@ -18,15 +20,16 @@ export function saveContent(data,kind,values,actor){
  if((status==='Published'&&!steps.length)||steps.length>100||steps.some(s=>s.length>1000))throw Error('Enter 1–100 steps or questions, one per line (up to 1,000 characters each).');
  const extra={};
  if(kind==='sops'){
-  Object.assign(extra,controlFields({...values,status},old));
-  for(const [key,max] of [['summary',1200],['reference',200],['revision',80],['scope',2000],['precautions',4000]]){extra[key]=String(values[key]??old?.[key]??'').trim();if(extra[key].length>max)throw Error(`${key} is too long (maximum ${max} characters).`);}
-  extra.reviewDate=String(values.reviewDate??old?.reviewDate??'');
+  Object.assign(extra,controlFields({...values,status},working));
+  for(const [key,max] of [['summary',1200],['reference',200],['revision',80],['scope',2000],['precautions',4000]]){extra[key]=String(values[key]??working?.[key]??'').trim();if(extra[key].length>max)throw Error(`${key} is too long (maximum ${max} characters).`);}
+  extra.reviewDate=String(values.reviewDate??working?.reviewDate??'');
   if(extra.reviewDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(extra.reviewDate)||!Number.isFinite(Date.parse(extra.reviewDate))||new Date(extra.reviewDate).toISOString().slice(0,10)!==extra.reviewDate))throw Error('Choose a valid review date.');
   if(status==='Published'&&(!extra.summary||values.approved!=='yes'))throw Error('Add a summary and confirm that you have reviewed and approved this SOP before publishing.');
-  Object.assign(extra,{status,sourceId:old?.sourceId||null,sourceName:old?.sourceName||null,approvedBy:status==='Published'?actor:null,approvedAt:status==='Published'?new Date().toISOString():null});
+  Object.assign(extra,{status,sourceId:working?.sourceId||null,sourceName:working?.sourceName||null,approvedBy:status==='Published'?actor:null,approvedAt:status==='Published'?new Date().toISOString():null});
  }
- const {audit:oldAudit,...previous}=old||{};
+ const {audit:oldAudit,draftRevision,...previous}=old||{};
  const entry={id:old?.id||crypto.randomUUID(),title,instructions,steps,...extra,version:(old?.version||0)+1,updated:new Date().toISOString(),updatedBy:actor,audit:[...(oldAudit||[]),...(old?[{at:new Date().toISOString(),actor,previous}]:[])]};
+ if(old&&kind==='sops'&&sopPublished(old)&&status==='Draft'){old.draftRevision=entry;return entry;}
  if(old)list[list.indexOf(old)]=entry;else list.push(entry);data[kind]=list;return entry;
 }
 export function checklistCommand(state,garage,action,values,id,content,actor){
@@ -40,7 +43,7 @@ export function checklistCommand(state,garage,action,values,id,content,actor){
  if(action==='checklist_return'){
   if(run.status!=='Awaiting review')throw Error('Only submitted checklists can be returned.');
   const notes=String(values.notes||'').trim();if(notes.length<5||notes.length>4000)throw Error('Explain the corrections needed (5–4000 characters).');
-  (run.audit??=[]).push({action:'Return for correction',actor,notes,at:new Date().toISOString()});run.status='In progress';return {id};
+  (run.audit??=[]).push({action:'Return for correction',actor,notes,at:new Date().toISOString()});run.status='In progress';run.returnNotes=notes;return {id};
  }
  if(action==='checklist_signoff'){
   if(run.status!=='Awaiting review')throw Error('Submit the checklist first.');
@@ -60,7 +63,7 @@ export function checklistCommand(state,garage,action,values,id,content,actor){
  }
  if(action==='checklist_submit'){
   if(run.template.steps.some((_,n)=>!run.answers[n]))throw Error('Answer every question before submitting.');
-  run.status='Awaiting review';run.submittedAt=new Date().toISOString();run.submittedBy=actor;return {id};
+  delete run.returnNotes;run.status='Awaiting review';run.submittedAt=new Date().toISOString();run.submittedBy=actor;return {id};
  }
  throw Error('Unknown checklist request.');
 }

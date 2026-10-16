@@ -97,6 +97,6 @@ test('iOS guidance and reminders stay away from active checks and installed apps
 });
 
 test('loss and recovery of connectivity update the warning without reloading an open screen',()=>{
-  const h=installHarness();h.navigator.onLine=false;h.events.offline();assert.equal(h.connection.hidden,false);assert.match(h.connection.textContent,/reconnect before saving/);
+  const h=installHarness();h.navigator.onLine=false;h.events.offline();assert.equal(h.connection.hidden,false);assert.match(h.connection.textContent,/not saved to the garage/);
   h.navigator.onLine=true;h.events.online();assert.equal(h.connection.hidden,true);
 });
