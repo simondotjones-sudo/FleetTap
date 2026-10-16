@@ -6,7 +6,7 @@ import {checksFlowView,isMyInspection} from '../src/checks-flow.js';
 import {draftFor,resumeIndex,available} from '../src/tablet.js';
 
 const me={role:'mechanic',name:'Alex',email:'alex@example.test'};
-const context=()=>({state:seed(),garage:'demo-north',me,page:'checks'});
+const context=()=>({state:seed(),garage:'demo-north',me,page:'bus-checks'});
 test('Checks selects a scoped bus before starting and does not expose administration',()=>{
  const c=context(),html=checksFlowView(c);
  assert.match(html,/data-go="checks\/DEMO-271"/);

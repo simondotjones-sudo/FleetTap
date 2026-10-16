@@ -7,16 +7,17 @@ import {taskReadings} from './inspections.js';
 
 const lists=new Map();
 let host;
-export const isChecksRoute=page=>['checks','my-checks','inspection-record','inspection-records'].includes(page.split('/')[0]);
+export const isChecksRoute=page=>['checks','bus-checks','my-checks','inspection-record','inspection-records'].includes(page.split('/')[0]);
 const listFor=c=>{const key=c.garage+':'+c.page;if(!lists.has(key))lists.set(key,{query:'',page:0});return lists.get(key);};
 const go=(page,label)=>`<button type="button" class="tap-small" data-go="${esc(page)}">${esc(label)}</button>`;
 const icon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2M8 15h1M15 15h1"/></svg>';
-const tile=(page,title,sub,extra='')=>`<button type="button" class="tap-tile" data-go="${esc(page)}">${icon}<strong>${esc(title)}</strong><small>${esc(sub)}</small>${extra}</button>`;
+const checklistIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H5v17h14V4h-3M8 2h8v4H8zM8 11l2 2 6-6M8 17h8"/></svg>';
+const tile=(page,title,sub,extra='',symbol=icon)=>`<button type="button" class="tap-tile" data-go="${esc(page)}">${symbol}<strong>${esc(title)}</strong><small>${esc(sub)}</small>${extra}</button>`;
 const date=value=>value?esc(value.slice(0,10).split('-').reverse().join('.')):'Not recorded';
 const badge=status=>`<span class="pill ${status==='Overdue'?'critical':['Due today','Due soon','Awaiting review'].includes(status)?'attention':'status-neutral'}">${esc(status)}</span>`;
 const frame=(title,content,footer='')=>`<section class="tap-screen checks-screen"><div class="tap-heading"><h1>${esc(title)}</h1></div><div class="tap-content">${content}</div>${footer?`<footer class="tap-footer">${footer}</footer>`:''}</section>`;
 const scoped=c=>c.state.inspections.filter(i=>i.garage===c.garage&&isPM3(i)&&!i.deletedAt);
-const unavailable=()=>frame('Check unavailable','<p class="tap-caption">Choose a bus or inspection from your current garage.</p>',go('checks','Choose a bus'));
+const unavailable=()=>frame('Check unavailable','<p class="tap-caption">Choose a bus or inspection from your current garage.</p>',go('bus-checks','Choose a bus'));
 function paging(l,total){const pages=Math.max(1,Math.ceil(total/6));l.page=Math.max(0,Math.min(l.page,pages-1));return pages>1?`<button type="button" class="tap-small" data-checks-page="-1" ${l.page===0?'disabled':''}>Previous</button><span>${l.page+1} / ${pages}</span><button type="button" class="tap-small" data-checks-page="1" ${l.page===pages-1?'disabled':''}>Next</button>`:'';}
 const search=(l,placeholder)=>`<label class="sr-only" for="checks-search">${placeholder}</label><input id="checks-search" class="tap-search" type="search" value="${esc(l.query)}" placeholder="${placeholder}" autocomplete="off">`;
 export function isMyInspection(i,me){
@@ -27,14 +28,14 @@ export function isMyInspection(i,me){
 }
 function busPicker(c){
  const l=listFor(c),buses=c.state.vehicles.filter(v=>v.garage===c.garage&&[v.id,v.name,v.registration,v.model].join(' ').toLowerCase().includes(l.query.toLowerCase())),footer=paging(l,buses.length);
- return frame('Choose your bus',(manager(c.me)?'':`<div class="toolbar">${go('checklists','Garage checklists')}${reviewer(c.me)?go('reviews','Review & sign off'):''}</div>`)+search(l,'Find bus number, name or registration')+`<div class="tap-grid buses">${buses.slice(l.page*6,l.page*6+6).map(v=>{
+ return frame('Choose your bus',search(l,'Find bus number, name or registration')+`<div class="tap-grid buses">${buses.slice(l.page*6,l.page*6+6).map(v=>{
   const draft=scoped(c).find(i=>i.vehicle===v.id&&i.status==='In progress'),s=scheduleStatus(c.state,c.garage,v.id);
   return tile('checks/'+encodeURIComponent(v.id),v.name||v.id,[v.name?v.id:'',v.registration].filter(Boolean).join(' · ')||v.model,draft?badge('Check in progress'):s.due?badge(s.status):'');
  }).join('')}</div>`+(!buses.length?'<p class="tap-caption">No matching buses in this garage.</p>':''),footer);
 }
 function busCheck(c,v){
  const i=scoped(c).find(i=>i.vehicle===v.id&&i.status==='In progress'),t=i?.templateSnapshot||templateFor(c.state),s=scheduleStatus(c.state,c.garage,v.id),id=encodeURIComponent(v.id);
- return frame(i?'Resume your check':'Start your check',`<div class="checks-bus-summary"><h2>${esc(v.name||v.id)}</h2><p>${esc([v.name?v.id:'',v.registration,v.model].filter(Boolean).join(' · '))}</p>${badge(v.status)}<p>Last completed: ${date(s.last)} · Next due: ${s.due?date(s.due):'Not scheduled'}</p>${s.due?badge(s.status):''}</div><div class="tap-grid jobs checks-start"><button type="button" class="tap-tile" data-work-start="${esc(v.id)}" ${c.openingCheck?'disabled aria-busy="true"':''}>${icon}<strong>${c.openingCheck?'Opening check…':i?'Resume check':'Start check'}</strong><small>${esc(t.title)}${i?' · '+Object.keys(i.answers).length+' answers saved':''}</small></button></div><p class="tap-caption">Draft PM3 mapping · technical review required. Completing a check does not release the bus.</p>`,go('checks','Change bus')+go('checks/'+id+'/history','Inspection history'));
+ return frame(i?'Resume your check':'Start your check',`<div class="checks-bus-summary"><h2>${esc(v.name||v.id)}</h2><p>${esc([v.name?v.id:'',v.registration,v.model].filter(Boolean).join(' · '))}</p>${badge(v.status)}<p>Last completed: ${date(s.last)} · Next due: ${s.due?date(s.due):'Not scheduled'}</p>${s.due?badge(s.status):''}</div><div class="tap-grid jobs checks-start"><button type="button" class="tap-tile" data-work-start="${esc(v.id)}" ${c.openingCheck?'disabled aria-busy="true"':''}>${icon}<strong>${c.openingCheck?'Opening check…':i?'Resume check':'Start check'}</strong><small>${esc(t.title)}${i?' · '+Object.keys(i.answers).length+' answers saved':''}</small></button></div><p class="tap-caption">Draft PM3 mapping · technical review required. Completing a check does not release the bus.</p>`,go('bus-checks','Change bus')+go('checks/'+id+'/history','Inspection history'));
 }
 function records(c,v){
  if(c.page==='inspection-records'&&!manager(c.me))return frame('Administrator access required','<p class="tap-caption">Use My checks or choose a bus to view its history.</p>',go('my-checks','My checks'));
@@ -52,7 +53,8 @@ export function checksFlowView(c){
  let p;try{p=c.page.split('/').map(decodeURIComponent);}catch{return unavailable();}
  if(p[0]==='inspection-record')return record(c,p[1],p[2]);
  if(['my-checks','inspection-records'].includes(p[0]))return records(c);
- if(!p[1])return busPicker(c);
+ if(p[0]==='bus-checks')return busPicker(c);
+ if(!p[1])return frame('Checks',`<div class="tap-grid jobs checks-hub">${tile('bus-checks','Bus inspections','Choose a bus')}${tile('checklists','Garage checklists','Complete workshop checks','',checklistIcon)}</div>`);
  const v=c.state.vehicles.find(v=>v.id===p[1]&&v.garage===c.garage);if(!v)return unavailable();
  return p[2]==='history'?records(c,v):busCheck(c,v);
 }
