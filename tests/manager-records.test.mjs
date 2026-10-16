@@ -7,7 +7,7 @@ import {garageExport,managerRecordsView} from '../src/manager-records.js';
 const context=()=>({state:seed(),garage:'demo-north',me:{role:'garage_manager'},page:'manage'});
 test('manager hub and submitted reports stay role and garage scoped',()=>{
  const c=context();
- const hub=adminToolsView(c);assert.equal((hub.match(/class="tap-tile admin-tile"/g)||[]).length,9);
+ const hub=adminToolsView(c);assert.equal((hub.match(/class="tap-tile admin-tile"/g)||[]).length,10);
  assert.match(hub,/Submitted reports/);assert.match(hub,/data-go="fleet\/new"/);assert.match(hub,/id="export"/);
  assert.doesNotMatch(hub,/>Administration<|← Back/);
  c.state.reports.push({id:'same',garage:'demo-north',title:'Saved <report>',status:'Open',description:'North entry',created:'2026-10-15T12:00:00Z'},{id:'private',garage:'demo-south',title:'Private report',status:'Closed',description:'Hidden',created:'2026-10-15T12:00:00Z'});

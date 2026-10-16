@@ -126,6 +126,29 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('job_submit',{note:'Part fitted, door function tested'}, {id:jid},'mechanic')).status,200);
   assert.equal((await write('job_signoff',{note:'Self signoff'}, {id:jid},'mechanic')).status,400);
   assert.equal((await write('job_signoff',{note:'Checked and verified'}, {id:jid},'supervisor')).status,200);
+  // Management visibility: organisation-wide model terms and garage-scoped records.
+  const managementBoot=(await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data;
+  const policyBody={kind:'warrantyModels',organisation_id:org.id,version:managementBoot.contentVersion,values:{modelType:'OTHER',months:12,repairHours:24,reference:'Approved warranty terms'}};
+  assert.equal((await call(content,policyBody,cookies.garage_manager)).status,403);
+  assert.equal((await call(content,{...policyBody,organisation_id:otherOrg.id},cookies.organisation_admin)).status,403);
+  assert.equal((await call(content,policyBody,cookies.organisation_admin)).status,200);
+  assert.equal((await call(content,policyBody,cookies.organisation_admin)).status,409);
+  assert.equal((await call(workspace,null,cookies.organisation_admin,'?garage='+south.id)).data.content.warrantyModels[0].months,12);
+  assert.equal((await write('bus_warranty',{warrantyStart:'2025-01-01',warrantyExtendedUntil:'2027-01-01',reference:'Extension letter'},{id:'BUS-1'},'mechanic')).status,403);
+  assert.equal((await write('bus_warranty',{warrantyStart:'2025-01-01',warrantyExtendedUntil:'2027-01-01',reference:'Extension letter'},{id:'BUS-1'})).status,200);
+  const downtimeValues={vehicle:'BUS-1',startedAt:'2026-10-01T00:00',endedAt:'2026-10-03T00:00',reason:'Door repair',changeReason:'Workshop log'};
+  assert.equal((await write('downtime_save',downtimeValues,{},'mechanic')).status,403);
+  assert.equal((await write('downtime_save',downtimeValues,{},'supervisor')).status,403);
+  const down=await write('downtime_save',downtimeValues);assert.equal(down.status,200,JSON.stringify(down.data));const downId=down.data.result.id;
+  assert.equal((await write('downtime_save',downtimeValues)).status,400);
+  const restricted=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state;
+  assert.equal(restricted.downtime[0].rates,undefined);assert.equal(restricted.downtime[0].warrantySnapshot,undefined);assert.equal(restricted.downtime[0].reason,'Door repair');
+  const staleDown=await call(workspace,{action:'downtime_void',garage:garage.id,version:version-1,id:downId,values:{changeReason:'Stale'}},cookies.garage_manager);assert.equal(staleDown.status,409);
+  assert.equal((await call(workspace,{action:'downtime_void',garage:south.id,version:0,id:downId,values:{changeReason:'Wrong garage'}},cookies.garage_manager)).status,403);
+  assert.equal((await write('downtime_workday',{date:'2026-10-02',changeReason:'Work log'},{id:downId})).status,200);
+  assert.equal((await write('downtime_manufacturer',{notifiedAt:'2026-10-01T08:00',repairedAt:'2026-10-02T12:00',hours:24,reference:'Case 1',confirm:'yes',changeReason:'Manufacturer confirmed'},{id:downId})).status,200);
+  assert.equal((await write('downtime_void',{changeReason:'Incorrect historic entry'},{id:downId})).status,200);
+  assert.equal((await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state.downtime.length,0);
   // Demo users are private, password-protected accounts; only the platform admin creates them.
   assert.equal((await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.organisation_admin)).status,403);
   const demo=await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.platform_admin);assert.equal(demo.status,200);assert.equal(demo.data.credentials.length,5);

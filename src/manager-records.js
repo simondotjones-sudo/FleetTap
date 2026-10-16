@@ -11,7 +11,8 @@ const frame=(title,content,back='manage')=>`<section class="admin-tools manager-
 export function garageExport(c){
  if(!manager(c.me)||!c.garage)throw Error('Manager access required.');
  const result={schema:c.state.schema,garage:c.garage,exportedAt:new Date().toISOString()};
- for(const key of ['vehicles','inspections','reports','faults','actions','schedules','modelSchedules','checklistRuns','jobs','shifts','briefings'])result[key]=(c.state[key]||[]).filter(r=>r.garage===c.garage);
+ for(const key of ['vehicles','inspections','reports','faults','actions','schedules','modelSchedules','checklistRuns','jobs','shifts','briefings','downtime'])result[key]=(c.state[key]||[]).filter(r=>r.garage===c.garage);
+ if(c.state.downtimeRates)result.downtimeRates=structuredClone(c.state.downtimeRates);
  if(c.state.inspectionTemplate)result.inspectionTemplate=c.state.inspectionTemplate;
  return structuredClone(result);
 }

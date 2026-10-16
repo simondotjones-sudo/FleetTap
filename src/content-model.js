@@ -2,7 +2,7 @@ import {addRecord} from './model.js';
 export const sopPublished=x=>!x.status||x.status==='Published';
 export function visibleContent(data={},canAuthor=false){
  const clean=x=>{const {audit,...entry}=x;return entry;};
- return {sops:(data.sops||[]).filter(x=>canAuthor||sopPublished(x)).map(x=>canAuthor?x:clean(x)),checklists:(data.checklists||[]).map(x=>canAuthor?x:clean(x))};
+ return {warrantyModels:(data.warrantyModels||[]).map(x=>canAuthor?x:clean(x)),sops:(data.sops||[]).filter(x=>canAuthor||sopPublished(x)).map(x=>canAuthor?x:clean(x)),checklists:(data.checklists||[]).map(x=>canAuthor?x:clean(x))};
 }
 // Organisation-authored content is shared by all of its garages.
 export function saveContent(data,kind,values,actor){

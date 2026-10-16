@@ -1,3 +1,4 @@
+import {saveWarrantyModel} from '../../src/performance-model.js';
 import {db,actor,body,json,endpoint,fail,withActorTransaction} from '../../server/runtime.mjs';
 import {canAuthor} from '../../server/security.mjs';
 import {saveContent} from '../../src/content-model.js';
@@ -12,7 +13,7 @@ export default endpoint(async req=>{
  await sql`INSERT INTO organisation_content(organisation_id) VALUES(${org}) ON CONFLICT DO NOTHING`;
  const [row]=await sql`SELECT data,version FROM organisation_content WHERE organisation_id=${org}`;
  if(b.version!==row.version)fail('Content changed. Reload and retry.',409);
- let result;try{result=saveContent(row.data,b.kind,b.values||{},workerName(u));}catch(e){fail(e.message);}
+ let result;try{result=b.kind==='warrantyModels'?saveWarrantyModel(row.data,b.values||{},workerName(u)):saveContent(row.data,b.kind,b.values||{},workerName(u));}catch(e){fail(e.message);}
  const [saved]=await sql`WITH changed AS (UPDATE organisation_content SET data=${JSON.stringify(row.data)}::jsonb,version=version+1 WHERE organisation_id=${org} AND version=${b.version} AND EXISTS(SELECT 1 FROM users WHERE id=${u.id} AND active AND credential_version=${u.credential_version}) RETURNING version), audit AS (INSERT INTO audit_events(actor_id,action,target) SELECT ${u.id},${'content_'+b.kind},${result.id} FROM changed) SELECT version FROM changed`;
  if(!saved)fail('Content or your access changed. Reload and retry.',409);
  return json({ok:true,id:result.id,version:saved.version});

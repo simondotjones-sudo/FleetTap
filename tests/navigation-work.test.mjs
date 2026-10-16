@@ -16,7 +16,7 @@ test('menu offers each role reachable work and management sections without home 
   assert.deepEqual(sections.find(s=>s.title==='My Work').items.map(i=>i[0]),role==='supervisor'?['my-jobs','my-checks','actions','reviews']:['my-jobs','my-checks','actions']);
   assert.match(html,/data-go="actions" aria-current="page">My Actions/);
   assert.doesNotMatch(html,/data-go="(?:report|sops|checks|checklists|faults)"/);
-  if(manage)assert.deepEqual(sections[0].items.map(i=>i[0]),['garage-today','manage','fleet']);
+  if(manage)assert.deepEqual(sections[0].items.map(i=>i[0]),['garage-today','performance','manage','fleet']);
   const hub=checksFlowView({state:seed(),garage:'demo-north',me,page:'checks'});
   assert.match(hub,/data-go="bus-checks"/);assert.match(hub,/data-go="checklists"/);assert.doesNotMatch(hub,/data-go="reviews"/);
  }
