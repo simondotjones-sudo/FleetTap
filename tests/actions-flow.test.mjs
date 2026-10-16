@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {actionsView,setupActions,scopedAction,actionEvidence,actionsBusy} from '../src/actions-flow.js';
-import {seed,submitAction} from '../src/model.js';
+import {seed as baseSeed,submitAction} from '../src/model.js';
+
+const me={id:'assigned-worker',role:'mechanic',name:'Worker'};
+const seed=()=>{const state=baseSeed();state.actions[0].assignedTo=me.id;return state;};
 
 test('action selection and linked details stay within the current garage',()=>{
  const state=seed();state.actions.push({id:'elsewhere',garage:'demo-south',title:'Private south task',status:'Open'});
- const c={state,garage:'demo-north',page:'actions'};
+ const c={state,garage:'demo-north',page:'actions',me};
  assert.doesNotMatch(actionsView(c),/Private south task/);
  c.page='actions/elsewhere';assert.equal(scopedAction(c),null);assert.match(actionsView(c),/Action unavailable/);
  c.page='actions/%not-an-id';assert.equal(scopedAction(c),null);
@@ -17,7 +20,7 @@ test('action selection and linked details stay within the current garage',()=>{
 test('action updates preserve draft after failure, block duplicate submits and await review',async()=>{
  const listeners={};globalThis.document={addEventListener:(k,f)=>listeners[k]=f};globalThis.window={addEventListener:()=>{}};
  const state=seed(),garage='demo-north';let page='actions/FT-A-DEMO',html='',calls=0,fail=true,release;
- const notices=[],context=()=>({state,garage,page}),render=()=>{html=actionsView(context());};
+ const notices=[],context=()=>({state,garage,page,me}),render=()=>{html=actionsView(context());};
  setupActions({context,render,notify:m=>notices.push(m),reload:async()=>{},mutation:async(action,values,{id})=>{calls++;assert.equal(action,'action');if(fail)throw Error('Connection lost');await new Promise(r=>release=r);submitAction(state,id,values.evidence);}});
  const click=async dataset=>{const el={dataset,hasAttribute:k=>Object.hasOwn(dataset,k.replace(/^data-/,'').replace(/-([a-z])/g,(_,x)=>x.toUpperCase()))};await listeners.click({target:{closest:()=>el}});};
  render();await click({actionKind:'handover'});assert.match(html,/Tap to talk/);
@@ -32,7 +35,7 @@ test('action updates preserve draft after failure, block duplicate submits and a
 test('refresh after a lost response reconciles the saved update without submitting again',async()=>{
  const listeners={};globalThis.document={addEventListener:(k,f)=>listeners[k]=f};globalThis.window={addEventListener:()=>{}};
  const state=seed();state.actions[0].id='lost-response';const garage='demo-north',page='actions/lost-response';let html='',calls=0,evidence='';
- const context=()=>({state,garage,page}),render=()=>{html=actionsView(context());};
+ const context=()=>({state,garage,page,me}),render=()=>{html=actionsView(context());};
  setupActions({context,render,notify:()=>{},mutation:async(_action,values)=>{calls++;evidence=values.evidence;throw Object.assign(Error('Refresh the garage and retry.'),{status:409});},reload:async()=>{submitAction(state,'lost-response',evidence);}});
  const click=async dataset=>{const el={dataset,hasAttribute:k=>Object.hasOwn(dataset,k.replace(/^data-/,'').replace(/-([a-z])/g,(_,x)=>x.toUpperCase()))};await listeners.click({target:{closest:()=>el}});};
  await click({actionKind:'work'});listeners.input({target:{id:'action-note',value:'Inspected the ramp wiring.'}});await click({actionNext:''});await click({actionSave:''});assert.match(html,/Get latest records/);

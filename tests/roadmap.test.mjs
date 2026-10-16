@@ -7,7 +7,8 @@ import {roadmapSeeds,validateBrief} from '../src/roadmap-data.js';
 import {roadmapView,demoBuses} from '../src/roadmap-ui.js';
 test('roadmap validation and demo access',()=>{
  assert.equal(roadmapSeeds.length,13);assert.throws(()=>validateBrief({...roadmapSeeds[0],status:'bogus'}));
- for(const role of ['organisation_admin','garage_manager','supervisor','mechanic'])assert.match(roadmapView({me:{role},page:'garage-today'}),/access required/);
+ for(const role of ['supervisor','mechanic'])assert.match(roadmapView({me:{role},page:'garage-today'}),/access required/);
+ for(const role of ['organisation_admin','garage_manager']){assert.match(roadmapView({me:{role},page:'garage-today'}),/Sample data/);assert.match(roadmapView({me:{role},page:'roadmap'}),/Platform Admin access required/);}
  assert.equal(demoBuses.length,6);assert.match(roadmapView({me:{role:'platform_admin'},page:'garage-today'}),/DEMO-101/);
 });
 test('roadmap persists edits and feedback, rejects unauthorised and stale writes',async()=>{
