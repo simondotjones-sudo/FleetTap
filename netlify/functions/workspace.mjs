@@ -1,3 +1,4 @@
+import {operationsCommand,visibleOperations} from '../../src/garage-operations.js';
 import {visibleActionState,canWorkAction} from '../../src/action-assignment.js';
 import {closeRecord} from '../../src/reviews.js';
 import {checklistCommand,visibleContent} from '../../src/content-model.js';
@@ -17,19 +18,31 @@ export default endpoint(async(req)=>{
   const requested=new URL(req.url).searchParams.get('garage');const garage=requested||garages[0]?.id;
   if(!garage)return json({user:safeUser(u),garages,state:null,version:0});
   const g=await garageFor(u,garage);const [content]=await sql`SELECT data,version FROM organisation_content WHERE organisation_id=${g.organisation_id}`;const [org]=await sql`SELECT role_names,login_code FROM organisations WHERE id=${g.organisation_id}`;const [record]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${garage}`;
-  const assignees=canManage(u)?await sql`SELECT id,name,email,employee_id,role FROM users WHERE active AND password_hash IS NOT NULL AND (id=${u.id} OR (organisation_id=${g.organisation_id} AND (role='organisation_admin' OR garage_id=${garage}))) ORDER BY name,id`:[];
-  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,assignees,state:visibleActionState(record.data,u),version:record.version,garage,content:visibleContent(content?.data,canAuthor(u)),contentVersion:content?.version||0,organisation:g.organisation_id});
+  const assignees=canManage(u)?await sql`SELECT id,name,email,employee_id,role,garage_id FROM users WHERE active AND password_hash IS NOT NULL AND (id=${u.id} OR (organisation_id=${g.organisation_id} AND (role='organisation_admin' OR garage_id=${garage}))) ORDER BY name,id`:[];
+  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,assignees,state:visibleOperations(visibleActionState(record.data,u),u),version:record.version,garage,content:visibleContent(content?.data,canAuthor(u)),contentVersion:content?.version||0,organisation:g.organisation_id});
  }
  const b=await body(req);const g=await garageFor(u,b.garage);
  if(!Number.isInteger(b.version)||b.version<0)fail('Reload the garage before saving.',409);
  const [r]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${b.garage}`;
- if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:visibleActionState(r.data,u),version:r.version,result:prior});}
+ if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:visibleOperations(visibleActionState(r.data,u),u),version:r.version,result:prior});}
  if(!r||r.version!==b.version)fail('Another person saved changes. Refresh the garage and retry your entry.',409);
  const state=r.data;let result=null;const v=b.values||{};
  const photos=v.photos===undefined?[]:await validateAttachments(v.photos,b.garage,u);
  const worker=workerName(u);
  try{
  switch(b.action){
+  case 'shift_start':case 'shift_end':case 'briefing_save':case 'job_create':case 'job_plan':case 'job_start':case 'job_checks':case 'job_wait':case 'job_submit':case 'job_signoff':case 'job_return':case 'job_cancel':{
+   let assignee=null;
+   if(['job_create','job_plan'].includes(b.action)){
+    if(!canManage(u))fail('Manager access required.',403);
+    if(v.assigneeId){
+     if(typeof v.assigneeId!=='string'||!/^[a-f0-9-]{36}$/i.test(v.assigneeId))fail('Choose a mechanic in this garage.');
+     [assignee]=await sql`SELECT id,name FROM users WHERE id=${v.assigneeId} AND active AND password_hash IS NOT NULL AND organisation_id=${g.organisation_id} AND garage_id=${b.garage} AND role IN ('mechanic','supervisor','garage_manager')`;
+     if(!assignee)fail('Choose an active staff account in this garage.',403);
+    }
+   }
+   result=operationsCommand(state,b.garage,u,b.action,v,b.id,assignee);break;
+  }
   case 'close_record':if(!canReview(u))fail('Supervisor access required.',403);result=closeRecord(state,b.garage,b.kind,b.id,v,worker);break;
   case 'checklist_start':case 'checklist_answer':case 'checklist_submit':case 'checklist_signoff':case 'checklist_return':{if(['checklist_signoff','checklist_return'].includes(b.action)&&!canReview(u))fail('Supervisor access required.',403);const [content]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${g.organisation_id}`;result=checklistCommand(state,b.garage,b.action,v,b.id,content?.data||{},worker);break;}
   case 'vehicle_edit':if(!canManage(u))fail('Administrator access required.',403);result=editVehicle(state,b.garage,b.id,v,worker);break;
@@ -59,5 +72,5 @@ export default endpoint(async(req)=>{
  // Recheck the authenticated account version at commit time to reject revoked sessions.
  const [updated]=await sql`WITH changed AS (UPDATE garage_records SET data=${JSON.stringify(state)}::jsonb,version=version+1,updated_at=now() WHERE garage_id=${b.garage} AND version=${b.version} AND EXISTS(SELECT 1 FROM users WHERE id=${u.id} AND active AND credential_version=${u.credential_version}) RETURNING version), audit AS (INSERT INTO audit_events(actor_id,action,target,garage_id) SELECT ${u.id},${'workspace_'+b.action},${b.id||result?.id||null},${b.garage} FROM changed) SELECT version FROM changed`;
  if(!updated)fail('The record or your access changed. Refresh and try again.',409);
- return json({state:visibleActionState(state,u),version:updated.version,result});
+ return json({state:visibleOperations(visibleActionState(state,u),u),version:updated.version,result});
 });

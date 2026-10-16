@@ -81,3 +81,13 @@ The Platform Admin can generate a private demo account for each role from Users 
 Removing an organisation archives it and revokes all of its users' sessions. Records are retained and the organisation can be restored. Every login and garage read rejects archived organisations. Administrative writes lock and revalidate the actor and targeted account within a database transaction, preventing concurrent revocation/role changes from granting stale access.
 
 Validation: full Node tests, including an isolated local Netlify Database with actual SQL migrations and all five roles, registration, privilege-escalation attempts, cross-organisation/garage denials, closure ordering, inspection sign-off, content snapshots, demo accounts and access revocation. Browser visual verification remains pending where the browser runtime is unavailable.
+
+### Garage operations (Build 23)
+
+Garage Today now reads persisted garage jobs rather than the workshop sample. Managers can create drive-in/repair jobs, plan due scheduled inspections, assign active local staff, post a dated briefing, and switch between the jobs board, the team view and the daily schedule. Unfinished earlier jobs carry forward. The board refreshes every 30 seconds when no form is being edited; Refresh is also available.
+
+Mechanics and supervisors land on My Jobs after login. Start my day records an explicit daily start; only the assigned account can start, pause or submit its job, and an account can work on one job at a time. End day & sign out records a handover and pauses unfinished work before ending the session. Start/end records indicate recorded day activity, not online presence or verified payroll hours. Existing eight-hour authentication sessions are unchanged. A missing end-day record is not silently invented.
+
+Scheduled jobs link to the existing PM3 inspection workflow. Submission requires a submitted inspection, and job sign-off requires that inspection's completed review. Linked faults must be closed before job sign-off. The existing PM3 Technical Office conflict remains blocked. Completing a job never releases the bus.
+
+Jobs, shifts and daily briefings are additive fields in the existing garage JSON records, protected by the same version compare-and-swap and authenticated garage scope. They are included in the garage export. No production fleet/staff data is fabricated and no database-provider cutover is required. Existing fleet data can be used now; the incoming Dublin Bus fleet file can be imported separately once supplied.

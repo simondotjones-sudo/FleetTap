@@ -11,7 +11,7 @@ function screen(message=''){
    if(token||register){if(v.password!==v.confirm)throw Error('Passwords do not match.');}
    if(token){await api('auth',{action:'activate',token,password:v.password});token=null;screen('Password saved. Sign in below.');}
    else if(register){const r=await api('auth',{action:'register',...v});register=false;screen('Account created. Your organisation code is '+r.organisation_code+'. Keep it for employee ID login.');document.querySelector('[name=organisation_code]').value=r.organisation_code;document.querySelector('[name=identifier]').value=v.email||v.employee_id;}
-   else{await api('auth',{action:'login',...v});location.hash='home';location.reload();}
+   else{const r=await api('auth',{action:'login',...v});location.hash=['mechanic','supervisor'].includes(r.user.role)?'my-jobs':'garage-today';location.reload();}
   }catch(err){document.querySelector('#auth-error').textContent=err.message;btn.disabled=false;}
  });
 }

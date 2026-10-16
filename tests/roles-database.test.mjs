@@ -105,6 +105,27 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('checklist_signoff',{notes:'Checked all records'},{id:cid},'mechanic')).status,403);
   assert.equal((await write('checklist_return',{notes:'Check the obstruction again'},{id:cid},'supervisor')).status,200);
   await write('checklist_answer',{item:0,result:'OK'},{id:cid},'mechanic');await write('checklist_submit',{}, {id:cid},'mechanic');assert.equal((await write('checklist_signoff',{notes:'Reviewed both checks'},{id:cid},'supervisor')).status,200);
+  // Garage operations use the same authenticated scope and atomic garage version.
+  const jobValues={vehicle:'BUS-1',title:'Door repair',type:'Drive-in repair',priority:'Normal',date:new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Dublin'}).format(new Date()),assigneeId:users.mechanic};
+  assert.equal((await write('job_create',jobValues,{},'mechanic')).status,403);
+  assert.equal((await write('job_create',{...jobValues,assigneeId:southUser.id})).status,403);
+  assert.equal((await write('job_create',{...jobValues,assigneeId:foreignUser.id})).status,403);
+  const job=await write('job_create',jobValues);assert.equal(job.status,200,JSON.stringify(job.data));const jid=job.data.result.id;
+  assert.equal((await write('job_start',{}, {id:jid},'supervisor')).status,400);
+  assert.equal((await write('job_start',{}, {id:jid},'mechanic')).status,400);
+  assert.equal((await write('shift_start',{}, {},'mechanic')).status,200);
+  assert.equal((await write('job_start',{}, {id:jid},'mechanic')).status,200);
+  const staleJob=await call(workspace,{action:'job_wait',garage:garage.id,version:version-1,id:jid,values:{reason:'Paused',note:'Stale'}},cookies.mechanic);assert.equal(staleJob.status,409);
+  const privateJobs=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state.jobs;assert.equal(privateJobs.length,1);assert.equal(privateJobs[0].assigneeId,users.mechanic);
+  const unassignedJob=await write('job_create',{...jobValues,assigneeId:''});assert.equal(unassignedJob.status,200);
+  assert.equal((await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state.jobs.length,1);
+  assert.equal((await write('shift_end',{}, {},'mechanic')).status,400);
+  assert.equal((await write('shift_end',{note:'Awaiting door part'}, {},'mechanic')).status,200);
+  assert.equal((await write('shift_start',{}, {},'mechanic')).status,200);
+  assert.equal((await write('job_start',{}, {id:jid},'mechanic')).status,200);
+  assert.equal((await write('job_submit',{note:'Part fitted, door function tested'}, {id:jid},'mechanic')).status,200);
+  assert.equal((await write('job_signoff',{note:'Self signoff'}, {id:jid},'mechanic')).status,400);
+  assert.equal((await write('job_signoff',{note:'Checked and verified'}, {id:jid},'supervisor')).status,200);
   // Demo users are private, password-protected accounts; only the platform admin creates them.
   assert.equal((await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.organisation_admin)).status,403);
   const demo=await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.platform_admin);assert.equal(demo.status,200);assert.equal(demo.data.credentials.length,5);

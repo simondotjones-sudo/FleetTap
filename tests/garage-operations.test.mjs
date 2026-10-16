@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {operationsCommand as command,visibleOperations,jobsForDay,dayShift} from '../src/garage-operations.js';
+import {operationsView} from '../src/garage-operations-ui.js';
+const now=new Date('2026-10-16T09:00:00Z'),g='garage',manager={id:'manager',name:'Manager',role:'garage_manager'},worker={id:'worker',name:'Mechanic',role:'mechanic'},other={id:'other',name:'Other',role:'mechanic'},supervisor={id:'super',name:'Supervisor',role:'supervisor'};
+const state=()=>({vehicles:[{id:'BUS-1',garage:g,due:'2026-10-16',model:'Test'}],inspections:[],faults:[],actions:[]});
+const create=(s,extra={})=>command(s,g,manager,'job_create',{date:'2026-10-16',vehicle:'BUS-1',type:'Drive-in repair',title:'Repair door',priority:'Normal',...extra},'',worker,now);
+const run=(s,u,a,v={},id='')=>command(s,g,u,a,v,id,null,now);
+test('assigned repair requires day start, owns work, enforces transitions and retains sign-off evidence without vehicle release',()=>{
+ const s=state(),j=create(s);
+ assert.throws(()=>run(s,worker,'job_start',{},j.id),/Start your day/);
+ run(s,worker,'shift_start');assert.equal(run(s,worker,'shift_start').id,s.shifts[0].id);assert.equal(s.shifts.length,1);
+ assert.throws(()=>run(s,other,'job_start',{},j.id),/not assigned/);
+ run(s,worker,'job_start',{},j.id);
+ const next=create(s);assert.throws(()=>run(s,worker,'job_start',{},next.id),/Pause your current/);
+ assert.throws(()=>run(s,manager,'job_plan',{date:'2026-10-16'},j.id),/Pause work/);
+ run(s,worker,'job_wait',{reason:'Awaiting parts',note:'Door actuator ordered'},j.id);
+ run(s,worker,'job_start',{},j.id);
+ run(s,worker,'job_submit',{note:'Actuator replaced and doors tested'},j.id);
+ assert.throws(()=>run(s,worker,'job_signoff',{note:'Self approval'},j.id),/Supervisor/);
+ run(s,supervisor,'job_return',{note:'Recheck emergency release'},j.id);
+ run(s,worker,'job_start',{},j.id);run(s,worker,'job_submit',{note:'Release tested'},j.id);
+ run(s,supervisor,'job_signoff',{note:'Functional checks witnessed'},j.id);
+ assert.equal(j.status,'Completed');assert.equal(s.vehicles[0].status,undefined);assert.equal(j.audit.at(-1).actorId,'super');
+ assert.throws(()=>run(s,worker,'job_start',{},j.id),/cannot be started/);
+});
+test('end day pauses running work, preserves handover, supports next day and filters staff records',()=>{
+ const s=state(),j=create(s);run(s,worker,'shift_start');run(s,worker,'job_start',{},j.id);
+ assert.throws(()=>run(s,worker,'shift_end'),/handover/);
+ run(s,worker,'shift_end',{note:'Wiring check needed tomorrow'});
+ assert.equal(j.status,'Waiting');assert.equal(dayShift(s,g,worker.id,'2026-10-16'),undefined);
+ assert.equal(jobsForDay(s,g,'2026-10-17').length,1);
+ assert.equal(visibleOperations(s,other).jobs.length,0);assert.equal(visibleOperations(s,other).shifts.length,0);
+ assert.equal(visibleOperations(s,worker).jobs[0].handover,'Wiring check needed tomorrow');
+ command(s,g,worker,'shift_start',{},'',null,new Date('2026-10-17T09:00:00Z'));assert.equal(s.shifts.length,2);
+});
+test('scheduled work is deduplicated and cannot be signed off without inspection completion',()=>{
+ const s=state(),j=create(s,{type:'Scheduled inspection'});assert.throws(()=>create(s,{type:'Scheduled inspection'}),/already has a job/);
+ run(s,worker,'shift_start');run(s,worker,'job_start',{},j.id);
+ assert.throws(()=>run(s,worker,'job_submit',{note:'Done'},j.id),/Submit the linked/);
+ const i=run(s,worker,'job_checks',{},j.id);assert.equal(j.inspectionId,i.id);
+ s.inspections[0].status='Awaiting review';run(s,worker,'job_submit',{note:'All answers recorded'},j.id);
+ assert.throws(()=>run(s,supervisor,'job_signoff',{note:'Checked'},j.id),/linked inspection review/);
+ s.inspections[0].status='Completed';run(s,supervisor,'job_signoff',{note:'Checked'},j.id);
+ assert.throws(()=>create(s,{type:'Scheduled inspection'}),/already has a job/);
+});
+test('invalid dates, foreign buses/jobs, future starts and unclosed linked faults are rejected',()=>{
+ const s=state();assert.throws(()=>create(s,{date:'2026-02-31'}),/valid job date/);assert.throws(()=>create(s,{vehicle:'FOREIGN'}),/this garage/);
+ const j=create(s,{date:'2026-10-17'});run(s,worker,'shift_start');assert.throws(()=>run(s,worker,'job_start',{},j.id),/future day/);
+ assert.throws(()=>command(s,'foreign',worker,'job_start',{},j.id,null,now),/unavailable/);
+ assert.throws(()=>run(s,worker,'briefing_save',{date:'2026-10-16',note:'Forged'}),/Manager/);
+ s.faults.push({id:'fault',vehicle:'BUS-1',garage:g,status:'Open'});const repair=create(s,{faultId:'fault'});
+ run(s,worker,'job_start',{},repair.id);run(s,worker,'job_submit',{note:'Fixed'},repair.id);
+ assert.throws(()=>run(s,supervisor,'job_signoff',{note:'Checked'},repair.id),/close the linked fault/);
+ s.faults[0].status='Closed';run(s,supervisor,'job_signoff',{note:'Verified'},repair.id);
+});
+test('screens render real jobs, escape briefing, restrict staff deep links and keep empty state honest',()=>{
+ const s=state(),j=create(s);run(s,manager,'briefing_save',{date:'2026-10-16',note:'<script>unsafe</script>'});
+ const c={state:s,garage:g,me:manager,assignees:[{...worker,garage_id:g}],page:'garage-today'};
+ const html=operationsView(c);assert.match(html,/Jobs board/);assert.doesNotMatch(html,/Sample data|DEMO-10/);
+ c.page='my-jobs/'+j.id;c.me=other;assert.match(operationsView(c),/Job unavailable/);
+ c.me=worker;assert.match(operationsView(c),/Start my day/);
+ c.page='garage-today';assert.match(operationsView(c),/Manager access required/);
+});
