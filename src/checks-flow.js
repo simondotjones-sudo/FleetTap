@@ -27,7 +27,7 @@ export function isMyInspection(i,me){
 }
 function busPicker(c){
  const l=listFor(c),buses=c.state.vehicles.filter(v=>v.garage===c.garage&&[v.id,v.name,v.registration,v.model].join(' ').toLowerCase().includes(l.query.toLowerCase())),footer=paging(l,buses.length);
- return frame('Choose your bus',`<div class="toolbar">${go('checklists','Garage checklists')}${reviewer(c.me)?go('reviews','Review & sign off'):''}</div>`+search(l,'Find bus number, name or registration')+`<div class="tap-grid buses">${buses.slice(l.page*6,l.page*6+6).map(v=>{
+ return frame('Choose your bus',(manager(c.me)?'':`<div class="toolbar">${go('checklists','Garage checklists')}${reviewer(c.me)?go('reviews','Review & sign off'):''}</div>`)+search(l,'Find bus number, name or registration')+`<div class="tap-grid buses">${buses.slice(l.page*6,l.page*6+6).map(v=>{
   const draft=scoped(c).find(i=>i.vehicle===v.id&&i.status==='In progress'),s=scheduleStatus(c.state,c.garage,v.id);
   return tile('checks/'+encodeURIComponent(v.id),v.name||v.id,[v.name?v.id:'',v.registration].filter(Boolean).join(' · ')||v.model,draft?badge('Check in progress'):s.due?badge(s.status):'');
  }).join('')}</div>`+(!buses.length?'<p class="tap-caption">No matching buses in this garage.</p>':''),footer);
