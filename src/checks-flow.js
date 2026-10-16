@@ -1,3 +1,4 @@
+import {releaseBadge} from './bus-release-ui.js';
 import {reviewer} from './roles.js';
 import {esc} from './api.js';
 import {manager} from './admin-ui.js';
@@ -35,7 +36,7 @@ function busPicker(c){
 }
 function busCheck(c,v){
  const i=scoped(c).find(i=>i.vehicle===v.id&&i.status==='In progress'),t=i?.templateSnapshot||templateFor(c.state),s=scheduleStatus(c.state,c.garage,v.id),id=encodeURIComponent(v.id);
- return frame(i?'Resume your check':'Start your check',`<div class="checks-bus-summary"><h2>${esc(v.name||v.id)}</h2><p>${esc([v.name?v.id:'',v.registration,v.model].filter(Boolean).join(' · '))}</p>${badge(v.status)}<p>Last completed: ${date(s.last)} · Next due: ${s.due?date(s.due):'Not scheduled'}</p>${s.due?badge(s.status):''}</div><div class="tap-grid jobs checks-start"><button type="button" class="tap-tile" data-work-start="${esc(v.id)}" ${c.openingCheck?'disabled aria-busy="true"':''}>${icon}<strong>${c.openingCheck?'Opening check…':i?'Resume check':'Start check'}</strong><small>${esc(t.title)}${i?' · '+Object.keys(i.answers).length+' answers saved':''}</small></button></div><p class="tap-caption">Draft PM3 mapping · technical review required. Completing a check does not release the bus.</p>`,go('bus-checks','Change bus')+go('checks/'+id+'/history','Inspection history'));
+ return frame(i?'Resume your check':'Start your check',`<div class="checks-bus-summary"><h2>${esc(v.name||v.id)}</h2><p>${esc([v.name?v.id:'',v.registration,v.model].filter(Boolean).join(' · '))}</p>${releaseBadge(c,v.id)}<p>Last completed: ${date(s.last)} · Next due: ${s.due?date(s.due):'Not scheduled'}</p>${s.due?badge(s.status):''}</div><div class="tap-grid jobs checks-start"><button type="button" class="tap-tile" data-work-start="${esc(v.id)}" ${c.openingCheck?'disabled aria-busy="true"':''}>${icon}<strong>${c.openingCheck?'Opening check…':i?'Resume check':'Start check'}</strong><small>${esc(t.title)}${i?' · '+Object.keys(i.answers).length+' answers saved':''}</small></button></div><p class="tap-caption">Draft PM3 mapping · technical review required. Completing a check does not release the bus.</p>`,go('bus-checks','Change bus')+go('checks/'+id+'/history','Inspection history'));
 }
 function records(c,v){
  if(c.page==='inspection-records'&&!manager(c.me))return frame('Administrator access required','<p class="tap-caption">Use My checks or choose a bus to view its history.</p>',go('my-checks','My checks'));

@@ -5,3 +5,7 @@ button,.button{color:#111}header{background:#111;border-color:#111}.brand,header
 .profile-panel{max-height:calc(100dvh - 160px);overflow:auto}.profile-panel>.secondary{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;margin-top:8px;text-align:left}.profile-panel>.secondary .icon{flex:0 0 22px;width:22px;height:22px}.login h1{font-size:30px}.login details{margin-top:22px}.login summary{cursor:pointer}.login #auth-error{font-size:15px}.login button{width:100%}
 
 .navigation-drawer nav button:hover,.navigation-drawer nav button:focus-visible,.navigation-drawer nav button[aria-current=page]{background:#111;color:#ffe500}
+
+.bus-records{max-width:1100px;margin:auto}.bus-records h1{text-align:center}.bus-timeline{border-left:3px solid #f5cf00;padding-left:16px;margin-top:20px}.bus-records .record-note{white-space:pre-wrap;overflow-wrap:anywhere}.bus-records .toolbar{flex-wrap:wrap}.bus-records .pill{white-space:normal}.bus-records li{margin-bottom:12px}
+
+.release-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.release-summary button{background:white;color:#111;border:1px solid #ddd;border-radius:14px;padding:16px 8px}.release-summary strong{display:block;font-size:2rem}.release-summary span{font-size:.9rem}.release-summary button:hover{background:#ffe000}@media(max-width:600px){.release-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}

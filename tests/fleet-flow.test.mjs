@@ -10,7 +10,7 @@ test('Fleet navigation and history retain garage scope, unknown dates and manage
  assert.doesNotMatch(fleetFlowView(c),/DEMO-315|Add bus/);
  c.page='fleet/new';assert.match(fleetFlowView(c),/Manager access required/);
  c.page='vehicle/DEMO-315';assert.match(fleetFlowView(c),/Bus unavailable/);
- c.page='vehicle/DEMO-302';assert.match(fleetFlowView(c),/Next inspection: Unknown/);assert.match(fleetFlowView(c),/Held for review/);
+ c.page='vehicle/DEMO-302';assert.match(fleetFlowView(c),/Next inspection: Unknown/);assert.match(fleetFlowView(c),/Off road/);
  c.page='history/DEMO-302/faults';assert.doesNotMatch(fleetFlowView(c),/Private south fault/);
  c.page='history/DEMO-302/fault/private-fault';assert.match(fleetFlowView(c),/Record unavailable/);
  c.page='history/DEMO-271/checks';startInspection(state,'DEMO-271','demo-north','Mechanic');assert.match(fleetFlowView(c),/In progress/);

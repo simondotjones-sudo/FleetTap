@@ -167,6 +167,30 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:{...controlValues,id:control.id,revision:'2'}},cookies.organisation_admin)).status,200);
   assert.equal((await write('answer',{result:'OK',readings:[1]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
   assert.equal((await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes'},{},'mechanic')).status,400);
+  // Release decisions use complete server-side records, survive JSONB storage, and respect roles.
+  assert.equal((await write('vehicle',{id:'RELEASE-1',model:'Synthetic release test'})).status,200);
+  const docValues={cvrtExpires:'2030-12-31',cvrtReference:'Synthetic certificate',taxExpires:'2030-12-31',taxReference:'Synthetic disc',notes:'Verified synthetic test records'};
+  assert.equal((await write('road_documents',docValues,{id:'RELEASE-1'},'mechanic')).status,403);
+  assert.equal((await write('road_documents',docValues,{id:'RELEASE-1'},'supervisor')).status,403);
+  assert.equal((await write('road_documents',docValues,{id:'RELEASE-1'})).status,200);
+  assert.equal((await write('bus_release',{notes:'Reviewed all evidence',confirm:'yes'},{id:'RELEASE-1'},'supervisor')).status,400);
+  // Test-only fixture in this isolated database; no approval pathway for the live blocked PM3 is added.
+  const [releaseFixture]=await sql`SELECT data FROM garage_records WHERE garage_id=${garage.id}`;
+  releaseFixture.data.vehicles.find(b=>b.id==='RELEASE-1').due='2030-01-01';
+  releaseFixture.data.inspections.push({id:'synthetic-completed',garage:garage.id,vehicle:'RELEASE-1',templateId:'pm3',created:'2026-10-01T08:00:00Z',status:'Completed',completedDate:'2026-10-01',completedAt:'2026-10-01T09:00:00Z',completedBy:'Test supervisor',templateSnapshot:{tasks:[{id:'q',text:'Synthetic approved test'}]},answers:{q:{result:'OK',worker:'Test mechanic'}},audit:[]});
+  const [releaseFixtureVersion]=await sql`UPDATE garage_records SET data=${JSON.stringify(releaseFixture.data)}::jsonb,version=version+1 WHERE garage_id=${garage.id} RETURNING version`;version=releaseFixtureVersion.version;
+  assert.equal((await write('bus_release',{notes:'Reviewed all evidence',confirm:'yes'},{id:'RELEASE-1'},'mechanic')).status,403);
+  const releaseResult=await write('bus_release',{notes:'Reviewed all evidence',confirm:'yes',actorId:users.mechanic},{id:'RELEASE-1'},'supervisor');assert.equal(releaseResult.status,200,JSON.stringify(releaseResult.data));
+  const releaseRead=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state;assert.equal(releaseRead.releaseStatuses['RELEASE-1'].status,'Released for service');assert.equal(releaseRead.releaseEvents[0].evidence,undefined);assert.equal(releaseRead.releaseEvents[0].actorId,users.supervisor);
+  const staleRelease=await call(workspace,{action:'bus_hold',garage:garage.id,version:version-1,id:'RELEASE-1',values:{notes:'Stale hold request'}},cookies.supervisor);assert.equal(staleRelease.status,409);
+  const blockingFault=await write('record',{vehicle:'RELEASE-1',title:'New fault',description:'Synthetic brake fault'},{kind:'faults'},'mechanic');assert.equal(blockingFault.status,200);assert.equal(blockingFault.data.state.releaseStatuses['RELEASE-1'].status,'Off road');assert.equal(blockingFault.data.state.releaseEvents.at(-1).type,'invalidated');
+  assert.equal((await write('bus_release',{notes:'Try overriding blockers',confirm:'yes',eligible:true},{id:'RELEASE-1'},'supervisor')).status,400);
+  assert.equal((await write('bus_hold',{notes:'Held pending repair'},{id:'RELEASE-1'},'supervisor')).status,200);
+  assert.equal((await write('bus_clear_hold',{notes:'Manual hold reviewed'},{id:'RELEASE-1'},'supervisor')).status,200);
+  assert.equal((await write('service_add',{vehicle:'RELEASE-1',date:'2026-10-01',performedBy:'Test workshop',reference:'Test archive',notes:'Historical component service'}, {},'mechanic')).status,403);
+  const historic=await write('service_add',{vehicle:'RELEASE-1',date:'2026-10-01',performedBy:'Test workshop',reference:'Test archive',notes:'Historical component service'}, {},'supervisor');assert.equal(historic.status,200);
+  assert.equal((await write('service_void',{notes:'Incorrect source reference'},{id:historic.data.result.id},'supervisor')).status,200);
+  assert.equal((await call(workspace,{action:'bus_release',garage:south.id,version:0,id:'RELEASE-1',values:{notes:'Cross garage attempt',confirm:'yes'}},cookies.supervisor)).status,403);
   // Demo users are private, password-protected accounts; only the platform admin creates them.
   assert.equal((await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.organisation_admin)).status,403);
   const demo=await call(admin,{action:'demo_accounts',garage_id:garage.id},cookies.platform_admin);assert.equal(demo.status,200);assert.equal(demo.data.credentials.length,5);

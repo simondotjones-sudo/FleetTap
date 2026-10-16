@@ -1,3 +1,4 @@
+import {releaseCommand,serviceHistoryCommand,refreshReleaseHolds,withReleaseStatus,visibleRelease} from '../../src/bus-release.js';
 import {acknowledgeControl,requireControls,visibleControls} from '../../src/active-controls.js';
 import {performanceCommand,visiblePerformance} from '../../src/performance-model.js';
 import {operationsCommand,visibleOperations} from '../../src/garage-operations.js';
@@ -13,6 +14,7 @@ import {startInspection,recordRecheck,saveAnswer,submitInspection,saveVehicle} f
 import {editTemplate} from '../../src/templates.js';
 import {editVehicle,manageInspection} from '../../src/inspection-admin.js';
 import {saveSchedule} from '../../src/scheduling.js';
+const visible=(s,u,g)=>visibleRelease(visibleControls(visiblePerformance(visibleOperations(visibleActionState(withReleaseStatus(s,g),u),u),u),u),u);
 export default endpoint(async(req)=>{
  const u=await actor(req),sql=db();
  if(req.method==='GET'){
@@ -21,12 +23,12 @@ export default endpoint(async(req)=>{
   if(!garage)return json({user:safeUser(u),garages,state:null,version:0});
   const g=await garageFor(u,garage);const [content]=await sql`SELECT data,version FROM organisation_content WHERE organisation_id=${g.organisation_id}`;const [org]=await sql`SELECT role_names,login_code FROM organisations WHERE id=${g.organisation_id}`;const [record]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${garage}`;
   const assignees=canManage(u)?await sql`SELECT id,name,email,employee_id,role,garage_id FROM users WHERE active AND password_hash IS NOT NULL AND (id=${u.id} OR (organisation_id=${g.organisation_id} AND (role='organisation_admin' OR garage_id=${garage}))) ORDER BY name,id`:[];
-  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,assignees,state:visibleControls(visiblePerformance(visibleOperations(visibleActionState(record.data,u),u),u),u),version:record.version,garage,content:visibleContent(content?.data,canAuthor(u)),contentVersion:content?.version||0,organisation:g.organisation_id});
+  if(!record)fail('Garage records are not ready.',503);return json({user:safeUser({...u,role_names:org.role_names,login_code:org.login_code}),garages,assignees,state:visible(record.data,u,garage),version:record.version,garage,content:visibleContent(content?.data,canAuthor(u)),contentVersion:content?.version||0,organisation:g.organisation_id});
  }
  const b=await body(req);const g=await garageFor(u,b.garage);
  if(!Number.isInteger(b.version)||b.version<0)fail('Reload the garage before saving.',409);
  const [r]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${b.garage}`;
- if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:visibleControls(visiblePerformance(visibleOperations(visibleActionState(r.data,u),u),u),u),version:r.version,result:prior});}
+ if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:visible(r.data,u,b.garage),version:r.version,result:prior});}
  if(!r||r.version!==b.version)fail('Another person saved changes. Refresh the garage and retry your entry.',409);
  const state=r.data;let result=null;const v=b.values||{};
  const photos=v.photos===undefined?[]:await validateAttachments(v.photos,b.garage,u);
@@ -40,6 +42,8 @@ export default endpoint(async(req)=>{
   if(b.action!=='instruction_ack')requireControls(state,b.garage,u,row?.data||{},vehicle);
  }
  switch(b.action){
+  case 'road_documents':case 'bus_release':case 'bus_hold':case 'bus_clear_hold':if(!canReview(u))fail('Supervisor access required.',403);if(b.action==='road_documents'&&!canManage(u))fail('Manager access required.',403);result=releaseCommand(state,b.garage,u,b.action,v,b.id);break;
+  case 'service_add':case 'service_void':if(!canReview(u))fail('Supervisor access required.',403);result=serviceHistoryCommand(state,b.garage,u,b.action,v,b.id);break;
   case 'instruction_ack':result=acknowledgeControl(state,b.garage,u,controlContent?.data||{},v);break;
   case 'reading_check':result=recordRecheck(state,b.id,b.garage,b.item,v.readings,worker);break;
   case 'bus_warranty':case 'downtime_rates':case 'downtime_save':case 'downtime_void':case 'downtime_reassess':case 'downtime_workday':case 'downtime_workday_remove':case 'downtime_manufacturer':case 'downtime_manufacturer_clear':{
@@ -84,9 +88,10 @@ export default endpoint(async(req)=>{
  }
  }catch(e){if(e.status)throw e;fail(e.message);}
  if(b.action==='answer'&&result?.fault&&photos.length){const f=state.faults.find(f=>f.id===result.fault&&f.garage===b.garage);f.photos=[...new Set([...(f.photos||[]),...photos])];if(f.photos.length>12)fail('This fault already has enough photos.');}
+ refreshReleaseHolds(state,b.garage,u);
  // Compare-and-swap prevents stale clients from overwriting another user's work.
  // Recheck the authenticated account version at commit time to reject revoked sessions.
  const [updated]=await sql`WITH changed AS (UPDATE garage_records SET data=${JSON.stringify(state)}::jsonb,version=version+1,updated_at=now() WHERE garage_id=${b.garage} AND version=${b.version} AND (${controlContent===null} OR COALESCE((SELECT version FROM organisation_content WHERE organisation_id=${g.organisation_id}),0)=${controlContent?.version||0}) AND EXISTS(SELECT 1 FROM users WHERE id=${u.id} AND active AND credential_version=${u.credential_version}) RETURNING version), audit AS (INSERT INTO audit_events(actor_id,action,target,garage_id) SELECT ${u.id},${'workspace_'+b.action},${b.id||result?.id||null},${b.garage} FROM changed) SELECT version FROM changed`;
  if(!updated)fail('The record or your access changed. Refresh and try again.',409);
- return json({state:visibleControls(visiblePerformance(visibleOperations(visibleActionState(state,u),u),u),u),version:updated.version,result});
+ return json({state:visible(state,u,b.garage),version:updated.version,result});
 });
