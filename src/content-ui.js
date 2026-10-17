@@ -14,7 +14,7 @@ function refreshSafetyPicker(form){
 }
 const full=x=>`<details class="card"><summary>Full instructions · version ${x.version}</summary><p class="record-note">${esc(x.instructions)}</p></details>`;
 export function contentView(c){
- if(c.page==='content/sops'||c.page.startsWith('content/sops/')||c.page.startsWith('org-sop/'))return sopWorkspaceView(c);
+ if(c.page==='content/sis'||c.page.startsWith('content/sis/')||c.page==='content/sops'||c.page.startsWith('content/sops/')||c.page.startsWith('org-sop/'))return sopWorkspaceView(c);
  const p=c.page.split('/'),content=c.content||{sops:[],checklists:[]};
  if(p[0]==='content'){
   if(!author(c.me))return contentFrame('Organisation Admin access required','','sops');
@@ -51,14 +51,14 @@ export function setupContent(host){setupSOPDocuments(host);document.addEventList
   if(f.dataset.kind==='checklists')v.criticalSafetySteps=[...f.querySelectorAll('[data-safety-picker] input:checked')].map(x=>Number(x.value));
   const file=f.elements.source?.files?.[0],status=v.status;delete v.source;
   if(file&&(file.size>4*1024*1024||!/\.pdf$/i.test(file.name)))throw Error('Choose a PDF under 4 MB.');
-  const result=await api('content',{kind:f.dataset.kind,organisation_id:c.organisation,version:c.contentVersion,values:{...v,status:file?'Draft':status,id:f.dataset.id}});
+  let result=await api('content',{kind:f.dataset.kind,organisation_id:c.organisation,version:c.contentVersion,values:{...v,status:file?'Draft':status,id:f.dataset.id}});
   if(file){
    const q=new URLSearchParams({garage:c.garage,sop:result.id,version:result.version,name:file.name});
    const response=await fetch('/.netlify/functions/sop-documents?'+q,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/pdf'},body:file});const uploaded=await response.json();
    if(!response.ok){f.dataset.id=result.id;await host.reload();throw Error('Draft saved; PDF attachment failed: '+(uploaded.error||'Please retry.'));}
-   if(status==='Published')await api('content',{kind:'sops',organisation_id:c.organisation,version:uploaded.version,values:{...v,id:result.id}});
+   if(status==='Published')result=await api('content',{kind:'sops',organisation_id:c.organisation,version:uploaded.version,values:{...v,id:result.id}});
   }
-  await host.reload();host.go(f.dataset.kind==='sops'?status==='Draft'?'content/sops/'+result.id:'org-sop/'+result.id:'content/checklists/library');
+  await host.reload();host.go(f.dataset.kind==='sops'?result.bulletinId?'tsbs/edit/'+result.bulletinId:status==='Draft'?'content/'+(v.documentType==='si'?'sis':'sops')+'/'+result.id:'org-sop/'+result.id:'content/checklists/library');
  }
  else{const r=await host.mutation('checklist_'+action,v,{id:f.dataset.id});if(action==='start')host.go('checklists/run/'+r.id);else if(action==='answer'){const run=host.context().state.checklistRuns.find(r=>r.id===f.dataset.id),next=run.template.steps.every((_,n)=>run.answers[n])?'review':Math.min(Number(v.item)+1,run.template.steps.length-1);host.go('checklists/run/'+r.id+'/'+next);}else host.go('checklists/run/'+f.dataset.id);}
  host.notify('Saved.');

@@ -1,3 +1,5 @@
+import {publishedBulletins,bulletinRequired,bulletinReviewOverdue} from './bulletins.js';
+import {completionFor} from './instruction-learning.js';
 import {backRoute} from './navigation.js';
 import {esc} from './api.js';
 import {today} from './scheduling.js';
@@ -9,7 +11,7 @@ import {isMyInspection} from './checks-flow.js';
 
 const paths={instruction:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',action:'M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 4-4-4z'};
 const icon=kind=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[kind]}"/></svg>`;
-const overdue=x=>x.reviewDate&&x.reviewDate<today();
+const overdue=x=>x.isTSB?bulletinReviewOverdue(x):x.reviewDate&&x.reviewDate<today();
 const section=(title,body,showTitle=true)=>body?`<section class="my-day-section"${showTitle?'':` aria-label="${title}"`}>${showTitle?`<h2>${title}</h2>`:''}<div class="my-day-list">${body}</div></section>`:'';
 const dateOrder=(a,b)=>a.date.localeCompare(b.date)||(a.time||'99').localeCompare(b.time||'99');
 const jobOrder=(a,b)=>(a.status==='In progress'?0:1)-(b.status==='In progress'?0:1)||dateOrder(a,b);
@@ -22,11 +24,12 @@ export function myDayWork(c){
  const workBuses=new Set([...jobs,...actions,...inspections].map(x=>x.vehicle).filter(Boolean));
  const buses=state.vehicles.filter(b=>b.garage===garage);
  const instructions=(c.content?.sops||[]).filter(x=>(overdue(x)||!acknowledgement(state,garage,me.id,x))&&buses.some(b=>applies(x,b)&&(x.target==='all'||workBuses.has(b.id))));
+ instructions.push(...publishedBulletins(c.content).filter(x=>(bulletinReviewOverdue(x)||!completionFor(state,me.id,x))&&buses.some(b=>bulletinRequired(x,c.content,b,today(),state.recallCases)&&(x.target==='all'||workBuses.has(b.id)))).map(x=>({...x,isTSB:true})));
  return {jobs,actions,inspections,instructions};
 }
 
 function personalJob(c,j,instructions=[],record=false){
- const bus=c.state.vehicles.find(b=>b.garage===c.garage&&b.id===j.vehicle),required=instructions.find(x=>bus&&applies(x,bus));
+ const bus=c.state.vehicles.find(b=>b.garage===c.garage&&b.id===j.vehicle),required=instructions.find(x=>bus&&applies(x,bus,c.state.recallCases));
  const active=dayShift(c.state,c.garage,c.me.id),inspection=c.state.inspections.find(i=>i.id===j.inspectionId&&i.garage===c.garage&&i.vehicle===j.vehicle&&!i.deletedAt);
  const submitted=inspection&&['Awaiting review','Completed'].includes(inspection.status),returned=j.status==='Assigned'&&j.audit?.at(-1)?.event==='Returned for work';
  const meta=[record?displayDate(j.date):j.date<today()?'Carried over · '+displayDate(j.date):'',j.time||'',j.priority&&j.priority!=='Normal'?j.priority:''].filter(Boolean);
@@ -35,7 +38,7 @@ function personalJob(c,j,instructions=[],record=false){
  const content=`<span class="my-day-card-top"><strong>${esc(j.vehicle)}</strong>${badge}</span><span class="my-day-title">${esc(j.title)}</span>${meta.length?`<span class="my-day-meta">${esc(meta.join(' · '))}</span>`:''}`;
  let target=`data-go="my-jobs/${esc(j.id)}"`,label=record||!active?'View job':j.status==='In progress'?'Continue job':'Open job',direct=false;
  if(!record&&active){
-  if(required){target=`data-go="required-instructions/${esc(required.id)}?return=my-jobs"`;label=overdue(required)?'View required instruction':'Read & acknowledge';direct=true;}
+  if(required){target=`data-go="${required.isTSB?'tsbs':'required-instructions'}/${esc(required.id)}?return=my-jobs"`;label=overdue(required)?'View required instruction':'Read & acknowledge';direct=true;}
   else if(j.type==='Scheduled inspection'&&!submitted){target=`data-operation="job_checks" data-id="${esc(j.id)}"`;label=inspection||j.status==='In progress'?'Continue inspection':'Start inspection';direct=true;}
   else if(submitted&&j.status==='In progress')label='Finish job';
  }
@@ -46,7 +49,7 @@ function personalJob(c,j,instructions=[],record=false){
 export function myDayView(c){
  const active=dayShift(c.state,c.garage,c.me.id),{jobs,actions,inspections,instructions}=myDayWork(c);
  const briefing=(c.state.briefings||[]).find(b=>b.garage===c.garage&&b.date===today());
- const before=(briefing?`<article class="my-day-briefing"><h3>Garage briefing</h3><p>${esc(briefing.note)}</p></article>`:'')+instructions.map(x=>`<button type="button" class="my-day-card my-day-instruction" data-go="required-instructions/${esc(x.id)}?return=my-jobs">${icon('instruction')}<span><strong>${esc(x.title)}</strong><span class="my-day-next">${overdue(x)?'Review overdue · contact your manager':'Read & acknowledge'} <span aria-hidden="true">→</span></span></span></button>`).join('');
+ const before=(briefing?`<article class="my-day-briefing"><h3>Garage briefing</h3><p>${esc(briefing.note)}</p></article>`:'')+instructions.map(x=>`<button type="button" class="my-day-card my-day-instruction" data-go="${x.isTSB?'tsbs':'required-instructions'}/${esc(x.id)}?return=my-jobs">${icon('instruction')}<span><strong>${esc(x.title)}</strong><span class="my-day-next">${overdue(x)?'Review overdue · contact your manager':'Read & acknowledge'} <span aria-hidden="true">→</span></span></span></button>`).join('');
  const jobCards=jobs.map(j=>personalJob(c,j,instructions)).join('');
  const inspectionCards=inspections.map(i=>`<button type="button" class="my-day-card my-day-job" data-go="inspection/${esc(i.id)}"><span class="my-day-card-top"><strong>${esc(i.vehicle)}</strong><span class="ops-badge working">In progress</span></span><span class="my-day-title">Bus inspection</span><span class="my-day-next">Continue inspection <span aria-hidden="true">→</span></span></button>`).join('');
  const actionCards=actions.map(a=>`<button type="button" class="my-day-card my-day-action" data-go="actions/${esc(a.id)}">${icon('action')}<span>${a.vehicle?`<span class="my-day-meta">${esc(a.vehicle)}</span>`:''}<strong>${esc(a.title)}</strong><span class="my-day-next">${a.returnNotes?'Returned · update action':'Update action'} <span aria-hidden="true">→</span></span></span></button>`).join('');

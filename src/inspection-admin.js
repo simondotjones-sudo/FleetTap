@@ -15,7 +15,7 @@ export function editVehicle(state,garage,id,v,actor){
  (bus.audit??=[]).push({action:'Edit bus',actor,at:new Date().toISOString(),previous});
  Object.assign(bus,{id:next,name,model,modelType,registration});
  // Keep every existing link when correcting a fleet number. Audit snapshots retain the old identity.
- if(next!==id)for(const key of ['inspections','faults','reports','actions','schedules','jobs','downtime','checklistRuns','releaseEvents','serviceHistory'])for(const r of state[key]||[])if(r.garage===garage&&r.vehicle===id)r.vehicle=next;
+ if(next!==id)for(const key of ['inspections','faults','reports','actions','schedules','jobs','downtime','checklistRuns','releaseEvents','serviceHistory','recallCases'])for(const r of state[key]||[])if(r.garage===garage&&r.vehicle===id)r.vehicle=next;
  return {id:next};
 }
 export function manageInspection(state,garage,id,values,actor){

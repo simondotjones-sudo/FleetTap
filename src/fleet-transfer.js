@@ -3,7 +3,7 @@ import {individualSchedule,modelSchedule,scheduleStatus} from './scheduling.js';
 import {vehicleModelType} from './fleet-models.js';
 import {templateFor} from './templates.js';
 
-export const busRecordKeys=['inspections','faults','reports','actions','schedules','jobs','downtime','checklistRuns','releaseEvents','serviceHistory'];
+export const busRecordKeys=['inspections','faults','reports','actions','schedules','jobs','downtime','checklistRuns','releaseEvents','serviceHistory','recallCases'];
 export function busBundle(state,garage,id){
  const vehicle=state.vehicles.find(b=>b.garage===garage&&b.id===id);
  if(!vehicle)throw Error('Bus unavailable in this garage.');

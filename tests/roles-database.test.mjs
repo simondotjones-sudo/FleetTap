@@ -166,8 +166,11 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state.downtime.length,0);
   // Required instructions are enforced on direct API calls, with authenticated acknowledgements.
   let cv=(await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data.contentVersion;
+  const learning=(await import('../netlify/functions/instruction-learning.mjs')).default;
+  const publishTSB=async(draft)=>{const r=await call(content,{kind:'tsbs',organisation_id:org.id,version:draft.version,values:{id:draft.bulletinId,status:'Published',approved:'yes',reference:'TSB-'+draft.version}},cookies.organisation_admin);assert.equal(r.status,200,JSON.stringify(r.data));return (await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data.content.tsbs.find(x=>x.id===r.data.id);};
   const controlValues={title:'Mandatory isolation',summary:'Approved isolation',instructions:'Follow approved isolation source.',steps:'Isolate then verify',status:'Published',approved:'yes',reference:'SI TEST',revision:'1',required:'yes',target:'all'};
   const published=await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:controlValues},cookies.organisation_admin);assert.equal(published.status,200,JSON.stringify(published.data));
+  const bulletin=await publishTSB(published.data);
   let controls=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.content.sops;const control=controls.find(x=>x.title===controlValues.title);
   assert.equal((await write('start',{vehicle:'BUS-1'}, {},'mechanic')).status,400);
   // The direct inspection action must enforce the same controls and commit job + inspection together.
@@ -176,9 +179,9 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   const directJob=await write('job_create',{...jobValues,vehicle:'DIRECT-1',type:'Scheduled inspection',title:'Direct inspection'});assert.equal(directJob.status,200,JSON.stringify(directJob.data));const directId=directJob.data.result.id;
   const blockedVersion=version,blocked=await write('job_checks',{}, {id:directId},'mechanic');assert.equal(blocked.status,400);assert.match(blocked.data.error,/Work blocked/);assert.equal(version,blockedVersion);
   const blockedState=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state;assert.equal(blockedState.jobs.find(j=>j.id===directId).status,'Assigned');assert.equal(blockedState.inspections.some(i=>i.vehicle==='DIRECT-1'),false);
-  const ack=await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes',userId:users.supervisor},{},'mechanic');assert.equal(ack.status,200,JSON.stringify(ack.data));assert.equal(ack.data.result.userId,users.mechanic);
-  assert.equal((await call(workspace,null,cookies.supervisor,'?garage='+garage.id)).data.state.instructionAcks.length,0);
-  assert.equal((await call(workspace,null,cookies.garage_manager,'?garage='+garage.id)).data.state.instructionAcks.length,1);
+  const ack=await call(learning,{garage:garage.id,instructionId:bulletin.id,action:'acknowledge',values:{version:bulletin.version,understood:'yes',userId:users.supervisor}},cookies.mechanic);assert.equal(ack.status,200,JSON.stringify(ack.data));assert.equal(ack.data.record.userId,users.mechanic);
+  assert.equal((await call(workspace,null,cookies.supervisor,'?garage='+garage.id)).data.state.instructionLearning.length,0);
+  assert.equal((await call(workspace,null,cookies.garage_manager,'?garage='+garage.id)).data.state.instructionLearning.length,1);
   const direct=await write('job_checks',{}, {id:directId},'mechanic');assert.equal(direct.status,200,JSON.stringify(direct.data));const directInspectionId=direct.data.result.id;
   assert.equal(direct.data.state.jobs.find(j=>j.id===directId).status,'In progress');assert.equal(direct.data.state.jobs.find(j=>j.id===directId).inspectionId,directInspectionId);
   const staleDirect=await call(workspace,{action:'job_checks',garage:garage.id,version:version-1,id:directId,values:{}},cookies.mechanic);assert.equal(staleDirect.status,409);
@@ -189,7 +192,7 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('answer',{result:'OK',readings:[1]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
   assert.equal((await write('answer',{result:'OK',readings:[1],recheckConfirmed:true,recheckNote:'Checked calibration and retested'},{id:controlInspectionId,item:'1-1'},'mechanic')).status,200);
   cv=(await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data.contentVersion;
-  assert.equal((await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:{...controlValues,id:control.id,revision:'2'}},cookies.organisation_admin)).status,200);
+  const revision=await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:{...controlValues,id:control.id,revision:'2'}},cookies.organisation_admin);assert.equal(revision.status,200);await publishTSB(revision.data);
   assert.equal((await write('job_checks',{}, {id:directId},'mechanic')).status,400);
   assert.equal((await write('answer',{result:'OK',readings:[1]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
   assert.equal((await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes'},{},'mechanic')).status,400);

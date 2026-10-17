@@ -33,6 +33,7 @@ export function busTimeline(s,g,id){
   if(d.endedAt)add('Downtime',d.endedAt,'Returned from repair',d.updatedBy,d.reason,link,d.id);
   for(const a of d.audit||[])add('Downtime',a.at,a.action||a.event||'Downtime updated',a.actor,a.reason||a.notes||'',link,d.id);
  }
+ for(const r of list('recallCases'))for(const a of r.audit||[])add('Safety recall',a.at,(r.snapshot?.reference||'Recall')+' · '+a.action.replace('recall_',''),a.actor,a.notes,'recalls/'+r.bulletinId+'/'+encodeURIComponent(id),r.id);
  for(const e of list('releaseEvents'))add('Release',e.at,{release:'Released for service',hold:'Supervisor hold',hold_cleared:'Supervisor hold cleared',invalidated:'Release invalidated'}[e.type]||e.type,e.actor,e.notes,'bus-release/'+encodeURIComponent(id),e.id);
  for(const r of list('serviceHistory')){
   add('Historical service',r.date+'T12:00:00Z','Historical service'+(r.voidedAt?' · voided':''),r.performedBy,r.notes+' · Evidence: '+r.reference+' · Recorded by '+r.actor+' at '+r.at,'',r.id);

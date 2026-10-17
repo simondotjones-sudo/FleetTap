@@ -40,7 +40,7 @@ test('draft revisions keep published content and acknowledgements stable until a
  saveContent(data,'sops',{...v,id:x.id,title:'Private revision',status:'Draft'},'Author');
  const visible=visibleContent(data).sops[0];assert.equal(visible.title,v.title);assert.equal(visible.version,version);assert.equal(visible.draftRevision,undefined);
  assert.throws(()=>saveContent(data,'sops',{...v,id:x.id,approved:'no'},'Author'),/approve/);
- saveContent(data,'sops',{...v,id:x.id,title:'Published revision'},'Approver');assert.equal(visibleContent(data).sops[0].version,version+1);assert.equal(visibleContent(data).sops[0].title,'Published revision');
+ saveContent(data,'sops',{...v,id:x.id,title:'Published revision'},'Approver');assert.equal(visibleContent(data).sops[0].version,version+2);assert.equal(visibleContent(data).sops[0].title,'Published revision');
 });
 test('instruction acknowledgement follows the explicit requirement, never instruction length',()=>{
  assert.equal(needsInstruction({text:'A'.repeat(5000)}),false);assert.equal(needsInstruction({text:'Read this.',requiresAcknowledgement:true}),true);

@@ -1,3 +1,4 @@
+import {recallReleaseEvidence} from './recalls.js';
 import {inspectionSequence} from './section-sequencing.js';
 import {openCriticalFaults,criticalCheckBlocked} from './critical-safety.js';
 import {reviewer,manager,workerName} from './roles.js';
@@ -8,7 +9,7 @@ const busFor=(s,g,id)=>{const b=s.vehicles.find(b=>b.id===id&&b.garage===g);if(!
 const canonical=x=>JSON.stringify(x,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
 // Explicit fields only: financial details and staff-only assignments are not release evidence.
 export function releaseAssessment(s,g,id,date=today()){
- const b=busFor(s,g,id),blockers=[],unknown=[];
+ const b=busFor(s,g,id),recalls=recallReleaseEvidence(s,g,id,date),blockers=[...recalls.blockers],unknown=[];
  const live=k=>rows(s,g,id,k).filter(x=>!x.deletedAt&&!x.voidedAt);
  const faults=live('faults'),jobs=live('jobs'),ins=live('inspections').filter(isPM3),checks=live('checklistRuns'),actions=live('actions'),down=live('downtime');
  const critical=openCriticalFaults(s,g,id);
@@ -33,7 +34,7 @@ export function releaseAssessment(s,g,id,date=today()){
  const latest=rows(s,g,id,'releaseEvents').at(-1);
  if(latest?.type==='hold')blockers.push('Supervisor hold: '+latest.notes);
  const compact=k=>rows(s,g,id,k).map(x=>({id:x.id,status:x.status,deletedAt:x.deletedAt||null,voidedAt:x.voidedAt||null,updated:x.updatedAt||x.updated||null,criticalSafety:x.criticalSafety,safetyResolution:x.safetyResolution,audit:(x.audit||[]).map(a=>({at:a.at,action:a.action,event:a.event,actor:a.actor,reason:a.reason})),answers:k==='inspections'||k==='checklistRuns'?x.answers:undefined,rechecks:x.rechecks,startedAt:x.startedAt,endedAt:x.endedAt,closedAt:x.closedAt,completedAt:x.completedAt}));
- const evidence={bus:{id:b.id,registration:b.registration||'',modelType:b.modelType||'',model:b.model},documents:docs,inspection:completed?.id||null,due:schedule.due,schedule:schedule.schedule||null,records:Object.fromEntries(['faults','actions','jobs','inspections','checklistRuns','downtime'].map(k=>[k,compact(k)]))};
+ const evidence={...(recalls.evidence.length?{recalls:recalls.evidence}:{}),bus:{id:b.id,registration:b.registration||'',modelType:b.modelType||'',model:b.model},documents:docs,inspection:completed?.id||null,due:schedule.due,schedule:schedule.schedule||null,records:Object.fromEntries(['faults','actions','jobs','inspections','checklistRuns','downtime'].map(k=>[k,compact(k)]))};
  const fingerprint=canonical(evidence);
  const eligible=!blockers.length&&!unknown.length;
  const released=eligible&&latest?.type==='release'&&latest.fingerprint===fingerprint;

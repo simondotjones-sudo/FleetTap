@@ -1,10 +1,11 @@
+import {currentDocument,publicBulletin} from './bulletins.js';
 import {criticalStep,criticalCheckBlocked,isCriticalFault} from './critical-safety.js';
 import {controlFields} from './active-controls.js';
 import {addRecord} from './model.js';
 export const sopPublished=x=>!x.status||x.status==='Published';
 export function visibleContent(data={},canAuthor=false){
  const clean=x=>{const {audit,draftRevision,...entry}=x;return entry;};
- return {warrantyModels:(data.warrantyModels||[]).map(x=>canAuthor?x:clean(x)),sops:(data.sops||[]).filter(x=>canAuthor||sopPublished(x)).map(x=>canAuthor?x:clean(x)),checklists:(data.checklists||[]).map(x=>canAuthor?x:clean(x))};
+ return {warrantyModels:(data.warrantyModels||[]).map(x=>canAuthor?x:clean(x)),tsbs:(data.tsbs||[]).filter(x=>canAuthor||x.status==='Published').map(x=>publicBulletin(x,canAuthor)),sops:(data.sops||[]).map(x=>canAuthor?x:currentDocument(x)).filter(x=>x&&(canAuthor||sopPublished(x))).map(x=>canAuthor?x:clean(x)),checklists:(data.checklists||[]).map(x=>canAuthor?x:clean(x))};
 }
 // Organisation-authored content is shared by all of its garages.
 export function saveContent(data,kind,values,actor){
@@ -28,6 +29,7 @@ export function saveContent(data,kind,values,actor){
  }
  if(kind==='sops'){
   Object.assign(extra,controlFields({...values,status},working));
+  extra.documentType=values.documentType??working?.documentType??'sop';if(!['sop','si'].includes(extra.documentType))throw Error('Choose SOP or SI.');
   for(const [key,max] of [['summary',1200],['reference',200],['revision',80],['scope',2000],['precautions',4000]]){extra[key]=String(values[key]??working?.[key]??'').trim();if(extra[key].length>max)throw Error(`${key} is too long (maximum ${max} characters).`);}
   extra.reviewDate=String(values.reviewDate??working?.reviewDate??'');
   if(extra.reviewDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(extra.reviewDate)||!Number.isFinite(Date.parse(extra.reviewDate))||new Date(extra.reviewDate).toISOString().slice(0,10)!==extra.reviewDate))throw Error('Choose a valid review date.');
@@ -35,7 +37,7 @@ export function saveContent(data,kind,values,actor){
   Object.assign(extra,{status,sourceId:working?.sourceId||null,sourceName:working?.sourceName||null,approvedBy:status==='Published'?actor:null,approvedAt:status==='Published'?new Date().toISOString():null});
  }
  const {audit:oldAudit,draftRevision,...previous}=old||{};
- const entry={id:old?.id||crypto.randomUUID(),title,instructions,steps,...extra,version:(old?.version||0)+1,updated:new Date().toISOString(),updatedBy:actor,audit:[...(oldAudit||[]),...(old?[{at:new Date().toISOString(),actor,previous}]:[])]};
+ const entry={id:old?.id||crypto.randomUUID(),title,instructions,steps,...extra,version:Math.max(old?.version||0,working?.version||0)+1,updated:new Date().toISOString(),updatedBy:actor,audit:[...(oldAudit||[]),...(old?[{at:new Date().toISOString(),actor,previous}]:[])]};
  if(old&&kind==='sops'&&sopPublished(old)&&status==='Draft'){old.draftRevision=entry;return entry;}
  if(old)list[list.indexOf(old)]=entry;else list.push(entry);data[kind]=list;return entry;
 }

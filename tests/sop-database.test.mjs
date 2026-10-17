@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NetlifyDB} from '@netlify/database-dev';
 import {getDatabase} from '@netlify/database';
+import pg from 'pg';
+const NativePool=pg.Pool;pg.Pool=class extends NativePool{constructor(options){super({...options,max:1});}};
 import {randomToken,hash} from '../server/security.mjs';
 
 test('SOP lifecycle and private PDFs: publication, roles, organisation scope, stale writes and revocation',async()=>{
@@ -21,9 +23,12 @@ test('SOP lifecycle and private PDFs: publication, roles, organisation scope, st
   }
   const call=(fn,{role='admin',body,query='',type='application/json',requestOrigin=origin}={})=>fn(new Request(origin+'/.netlify/functions/test'+query,{method:body===undefined?'GET':'POST',headers:{origin:requestOrigin,'content-type':type,cookie:cookies[role]||''},body:body===undefined?undefined:type==='application/json'?JSON.stringify(body):body}),ctx);
   let version=0;
-  const save=async(values,role='admin',v=version)=>{const r=await call(content,{role,body:{kind:'sops',organisation_id:org.id,version:v,values}}),data=await r.json();if(r.ok)version=data.version;return {status:r.status,...data};};
+  let bulletinCount=0;
+  const save=async(values,role='admin',v=version)=>{const r=await call(content,{role,body:{kind:'sops',organisation_id:org.id,version:v,values}}),data=await r.json();if(r.ok)version=data.version;
+   if(r.ok&&data.bulletinId){const published=await call(content,{role,body:{kind:'tsbs',organisation_id:org.id,version,values:{id:data.bulletinId,status:'Published',approved:'yes',reference:'TSB-'+(++bulletinCount)}}});const result=await published.json();assert.equal(published.status,200,JSON.stringify(result));version=result.version;data.version=version;}
+   return {status:r.status,...data};};
   const draft=await save({title:'Safe handover'});assert.equal(draft.status,200);const id=draft.id;
-  const values={id,title:'Safe handover',summary:'Source summary',instructions:'Full instruction',steps:'Check area\nHand over',status:'Published',approved:'yes'};
+  const values={id,title:'Safe handover',summary:'Source summary',instructions:'Full instruction',steps:'Check area\nHand over',status:'Published',approved:'yes',reference:'SOP-1',revision:'1'};
   const read=async(role='staff',garage=g.id)=>(await call(workspace,{role,query:'?garage='+garage})).json();
   assert.equal((await read()).content.sops.length,0);
   assert.equal((await read('admin')).content.sops.length,1);
@@ -45,8 +50,8 @@ test('SOP lifecycle and private PDFs: publication, roles, organisation scope, st
   assert.equal((await get()).status,200);assert.equal((await read()).content.sops[0].title,'Safe handover');assert.equal((await read()).content.sops[0].draftRevision,undefined);
   const revised=await upload();assert.equal(revised.status,201);const revisionDoc=await revised.json();version=revisionDoc.version;
   assert.equal((await get('staff',g.id,revisionDoc.id)).status,404);assert.equal((await get('admin',g.id,revisionDoc.id)).status,200);assert.equal((await get()).status,200);
-  assert.equal((await save({...values,title:'Revised handover'})).status,200);assert.equal((await read()).content.sops[0].title,'Revised handover');assert.equal((await get('staff',g.id,revisionDoc.id)).status,200);assert.equal((await get()).status,404);
-  assert.equal((await save({id,operation:'withdraw',reason:'Superseded by an approved procedure'})).status,200);assert.equal((await read()).content.sops.length,0);assert.equal((await get('staff',g.id,revisionDoc.id)).status,404);
+  assert.equal((await save({...values,title:'Revised handover'})).status,200);assert.equal((await read()).content.sops[0].title,'Revised handover');assert.equal((await get('staff',g.id,revisionDoc.id)).status,200);assert.equal((await get()).status,200);
+  assert.equal((await save({id,operation:'withdraw',reason:'Superseded by an approved procedure'})).status,400);assert.equal((await read()).content.sops.length,1);assert.equal((await get('staff',g.id,revisionDoc.id)).status,200);
   const [old]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${org.id}`;assert.ok(old.data.sops[0].audit.some(a=>a.previous.sourceId===doc.id));
   await sql`UPDATE users SET active=false,credential_version=credential_version+1 WHERE id=${users.admin}`;
   assert.equal((await upload()).status,401);assert.equal((await save(values)).status,401);
