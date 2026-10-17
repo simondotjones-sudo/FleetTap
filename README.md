@@ -1,5 +1,17 @@
 # FleetTap
 
+## Category pages and section sequencing — 1.17.10.26.49
+
+Sections are grouped into Mechanical, Body & access, Fire safety and Final checks. Each page has its category name and icon above up to six cards; cards use small matching icons. Top arrows and horizontal swipes replace bottom pagination. Browsing never records an answer. Green now means completed and passed; recorded faults awaiting verified closure show amber. Blocked instructions, outstanding rechecks, stale results and unsaved drafts cannot show a green pass.
+
+Organisation Admins can assign categories and configure independent sections, selected prerequisites or all other sections, requiring either completed work or completed-and-passed work. Rules use stable section identities, survive renaming and reordering, and reject missing references, self-dependencies and cycles. New inspections snapshot policy version 1 and their rules; existing inspection snapshots retain their original sequence. Template edits apply to future inspections within the selected garage.
+
+For new PM3 inspections, Test Drive requires every other section to pass, including verified repairs and evidenced permitted Not due entries. Unresolved Critical Safety Faults anywhere on the bus and supervisor holds block it. The current regeneration source conflict therefore keeps Test Drive locked until Technical Office resolution. Locked questions remain readable with a list of outstanding prerequisites. Repair/action verification remains available while inspection work is in progress. The final Test Drive question and its rule cannot be removed or detached through section/question edits.
+
+The same domain gate runs for answer and measurement writes, submission, signoff and release assessment. Server-owned answer revisions and prerequisite receipts require a fresh downstream check if supporting work changes, retaining earlier results in the audit. Receipt validation also rejects drafts based on older prerequisites. A failed Test Drive can be retested after verified repair without creating another fault merely for recording a successful retest. Completing Test Drive never releases a bus for service.
+
+Validation: all 154 automated tests and the production build pass. Focused domain and authenticated database tests cover gates, role and garage boundaries, mechanic-visible evidence, stale writes, prerequisite changes, verified repairs, conditional work, legacy snapshots, cycles and downstream retests. Real Chromium touch and browser checks cover category navigation, accidental-click suppression, green/amber/locked states, readable prerequisites, repair verification, retained audit history, admin settings, snapshot isolation and 320/390/1200px layouts.
+
 ## Section completion and question browsing — 1.17.10.26.48
 
 Section cards retain the saved count and replace the “to finish” count with a green border and tick when the section's checks are recorded. Unanswered questions, “Can't complete” results, pending rechecks, unsaved drafts and blocked technical-review items prevent the completion indicator. The indicator describes check completion; faults and bus-release requirements remain separate.

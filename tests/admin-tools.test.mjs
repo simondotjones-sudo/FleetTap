@@ -44,8 +44,8 @@ test('template section rename/reorder and adding a new section reach the tablet 
  assert.match(html,/Confirm workshop clean/);assert.match(html,/Manage inspection/);
  assert.equal(tasksFor(i)[0].section,'Engine and Transmission');assert.equal(taskReadings(tasksFor(i).find(t=>t.id==='1-1'))[0][3],14);
 });
-test('amend/delete/restore preserve evidence, keep faults open and do not complete an unsafe check',()=>{
- const s=seed(),i=newInspection(s);saveAnswer(s,i.id,garage,'1-2',{result:'Defect',worker,notes:'Damaged',readings:[]});
+test('amend/delete/restore preserve legacy evidence, keep faults open and do not complete an unsafe check',()=>{
+ const s=seed(),i=newInspection(s);delete i.templateSnapshot.sectionRules;saveAnswer(s,i.id,garage,'1-2',{result:'Defect',worker,notes:'Damaged',readings:[]});
  for(const t of tasksFor(i).filter(t=>!t.blocked&&t.id!=='1-2'))saveAnswer(s,i.id,garage,t.id,{result:'Not completed',worker,notes:'Pending work',readings:[]});
  submitInspection(s,i.id,garage,'Original notes');const count=s.actions.length;
  assert.throws(()=>manage(s,i,'complete',{date:today()}),/blocked/);

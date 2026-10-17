@@ -1,11 +1,11 @@
-// Only question pages opt in. Vertical scrolling, zoom and form controls keep native behaviour.
-export function setupQuestionSwipe(navigate){
+// Question and category pages opt in. Vertical scrolling, zoom and form controls keep native behaviour.
+export function setupQuestionSwipe(navigate,selector='.question-browse'){
  let gesture=null,suppressClickUntil=0;
- const interactive='input,textarea,select,a,summary,[contenteditable="true"],[data-browse-question]';
+ const interactive='input,textarea,select,a,summary,[contenteditable="true"],[data-browse-question],[data-browse-sections]';
  document.addEventListener('pointerdown',e=>{
   suppressClickUntil=0; // A new deliberate tap is not the previous swipe's compatibility click.
   if(gesture){gesture=null;return;}
-  const screen=e.target.closest?.('.question-browse');
+  const screen=e.target.closest?.(selector);
   if(!screen||!e.isPrimary||!['touch','pen'].includes(e.pointerType)||e.target.closest(interactive)||e.clientX<24||e.clientX>window.innerWidth-24)return;
   gesture={id:e.pointerId,screen,x:e.clientX,y:e.clientY};
  },{passive:true});
