@@ -1,3 +1,4 @@
+import {myDayView,myJobRecordsView} from './my-day.js';
 import {clearWorkDrafts} from './work-drafts.js';
 import {clearUserDrafts} from './form-drafts.js';
 import {releaseBadge} from './bus-release-ui.js';
@@ -11,11 +12,6 @@ export const operationsBusy=()=>busy;
 export const operationsRoute=p=>['garage-today','my-jobs'].includes(p.split('/')[0]);
 const button=(action,label,id='',secondary=false)=>`<button type="button" ${secondary?'class="secondary"':''} data-operation="${action}" data-id="${esc(id)}">${label}</button>`;
 const go=(page,label)=>`<button class="secondary" type="button" data-go="${esc(page)}">${label}</button>`;
-const workShortcuts=()=>`<nav class="ops-shortcuts" aria-label="My work">${[
- ['required-instructions','Required instructions','M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16'],
- ['my-checks','My bus inspections','M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2M8 15h1M15 15h1'],
- ['actions','My Actions','M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 4-4-4z']
-].map(([page,label,path])=>`<button class="tap-tile" type="button" data-go="${page}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg><strong>${label}</strong></button>`).join('')}</nav>`;
 const stamp=v=>v?new Date(v).toLocaleString('en-IE',{timeZone:'Europe/Dublin',dateStyle:'medium',timeStyle:'short'}):'—';
 const badge=j=>`<span class="ops-badge ${j.status==='In progress'?'working':j.status==='Waiting'?'waiting':j.status==='Completed'?'done':''}">${esc(j.status==='Waiting'?j.waitingReason||'Waiting':j.status)}</span>`;
 const localStaff=c=>(c.assignees||[]).filter(p=>p.garage_id===c.garage&&['mechanic','supervisor','garage_manager'].includes(p.role));
@@ -51,12 +47,10 @@ function detail(c,j,base){
 export function operationsView(c){
  const isBoard=c.page.startsWith('garage-today'),base=isBoard?'garage-today':'my-jobs',id=c.page.split('/')[1]?.split('?')[0];
  if(isBoard&&!manager(c.me))return '<section class="card"><h1>Manager access required</h1></section>';
+ if(!isBoard&&id==='records')return myJobRecordsView(c);
  if(id==='new')return manager(c.me)?newJob(c):'<section class="card"><h1>Manager access required</h1></section>';
  if(id){const j=garageJobs(c.state,c.garage).find(j=>j.id===id&&(isBoard||j.assigneeId===c.me.id||reviewer(c.me)));return j?detail(c,j,base):'<section class="card"><h1>Job unavailable</h1></section>';}
- if(!isBoard){
-  const active=dayShift(c.state,c.garage,c.me.id),mine=garageJobs(c.state,c.garage).filter(j=>j.assigneeId===c.me.id),work=mine.filter(j=>jobOpen(j)&&j.date<=today()),upcoming=mine.filter(j=>jobOpen(j)&&j.date>today()),done=mine.filter(j=>j.status==='Completed');
-  return `<section class="ops-page"><h1>My jobs</h1><section class="ops-day"><div><span class="ops-eyebrow">${esc(today())}</span><h2>${esc(c.me.name)}</h2><p>${active?'Day started · '+esc(stamp(active.startedAt)):'Start your day to begin work.'}</p></div><div class="toolbar">${!active?button('shift_start','Start my day'):button('end_day','End day & sign out')}${button('refresh','Refresh','',true)}</div></section>${briefing(c,today())}${workShortcuts()}<div class="ops-job-grid">${work.sort((a,b)=>(a.status==='In progress'?-1:1)-(b.status==='In progress'?-1:1)||a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(j=>card(j,base)).join('')||'<section class="card empty">No jobs assigned. Your manager’s assignments will appear here.</section>'}</div>${upcoming.length?`<details class="card"><summary>Upcoming jobs (${upcoming.length})</summary><div class="ops-job-grid">${upcoming.sort((a,b)=>a.date.localeCompare(b.date)).map(j=>card(j,base)).join('')}</div></details>`:''}${unplannedInspections(c,true)}${reviewer(c.me)?`<h2>Jobs awaiting sign-off</h2><div class="ops-job-grid">${garageJobs(c.state,c.garage).filter(j=>j.status==='Awaiting sign-off').map(j=>card(j,base)).join('')||'<p>No jobs awaiting sign-off.</p>'}</div>`:''}<details class="card"><summary>Completed jobs (${done.length})</summary><div class="ops-job-grid">${done.sort((a,b)=>b.completedAt.localeCompare(a.completedAt)).map(j=>card(j,base)).join('')}</div></details></section>`;
- }
+ if(!isBoard)return myDayView(c);
  const jobs=jobsForDay(c.state,c.garage,selectedDate),staff=localStaff(c),groups=['Unassigned','Assigned','In progress','Waiting','Awaiting sign-off','Completed'];
  const due=c.state.vehicles.filter(b=>b.garage===c.garage).map(b=>({bus:b,...scheduleStatus(c.state,c.garage,b.id,selectedDate)})).filter(x=>x.due&&x.due<=selectedDate&&!garageJobs(c.state,c.garage).some(j=>j.vehicle===x.bus.id&&j.type==='Scheduled inspection'&&j.status!=='Cancelled'&&(jobOpen(j)||j.sourceDue===x.due)));
  return `<section class="ops-page"><h1>Garage today</h1><div class="ops-controls"><label class="ops-date">Day<input data-ops-date type="date" value="${selectedDate}"></label><div class="report-switch" role="group" aria-label="Garage view">${['jobs','team','schedule'].map(k=>`<button data-ops-view="${k}" aria-pressed="${view===k}">${{jobs:'Jobs board',team:'Team',schedule:'Day plan'}[k]}</button>`).join('')}</div><div class="toolbar"><button type="button" data-go="garage-today/new">+ New job</button><details class="ops-tools"><summary>More</summary>${go('required-instructions/team','Team instructions')}${go('required-instructions/rechecks','Measurement rechecks')}${go('performance','Performance')}${button('refresh','Refresh','',true)}</details></div></div>${briefing(c,selectedDate)}
@@ -78,7 +72,7 @@ async function run(action,values={},id='',form=null){
 }
 export function endDay(){
  if(busy)return;const c=host.context(),running=garageJobs(c.state,c.garage).filter(j=>j.assigneeId===c.me.id&&j.status==='In progress');
- document.querySelector('#workspace').innerHTML=`<section class="ops-page"><h1>End my day</h1><form class="card ops-form" data-operation-form="shift_end"><p>${running.length?`${running.length} job(s) still in progress will be paused for handover.`:'Your job records and checks are saved.'}</p><label>Handover for the next shift<textarea name="note" ${running.length?'required':''} maxlength="2000" rows="4" placeholder="Work outstanding, blockers and next steps">${esc(running.map(j=>j.vehicle+' · '+j.title+'\nNext: '+(j.handover||'')).join('\n\n'))}</textarea></label><button>End day & sign out</button><p class="form-error" role="alert"></p></form><div class="toolbar">${go('my-jobs','← Back to My Jobs')}</div></section>`;
+ document.querySelector('#workspace').innerHTML=`<section class="ops-page"><h1>End my day</h1><form class="card ops-form" data-operation-form="shift_end"><p>${running.length?`${running.length} job(s) still in progress will be paused for handover.`:'Your job records and checks are saved.'}</p><label>Handover for the next shift<textarea name="note" ${running.length?'required':''} maxlength="2000" rows="4" placeholder="Work outstanding, blockers and next steps">${esc(running.map(j=>j.vehicle+' · '+j.title+'\nNext: '+(j.handover||'')).join('\n\n'))}</textarea></label><button>End day & sign out</button><p class="form-error" role="alert"></p></form><div class="toolbar">${go('my-jobs','← Back to my day')}</div></section>`;
 }
 export function setupOperations(h){host=h;
  document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el||busy)return;if(el.dataset.operation){if(el.dataset.operation==='end_day')endDay();else run(el.dataset.operation,{},el.dataset.id);return;}if(el.dataset.opsView){view=el.dataset.opsView;host.render();}if(el.dataset.opsStatus){status=el.dataset.opsStatus;view='jobs';host.render();}});
