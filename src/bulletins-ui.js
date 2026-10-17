@@ -25,7 +25,14 @@ const pageRows=(rows,p)=>{const count=Math.max(1,Math.ceil(rows.length/12)),page
 function pager(base,p,page,count){return count>1?`<div class="tsb-pagination">${page?go(filterURL(base,{...Object.fromEntries(p),page:page-1}),'Previous'):''}<span>${page+1} / ${count}</span>${page+1<count?go(filterURL(base,{...Object.fromEntries(p),page:page+1}),'Next'):''}</div>`:'';}
 function busSelect(c,name='bus',value='',empty='All buses'){return `<label>Bus<select name="${name}">${option('',empty,value)}${c.state.vehicles.filter(b=>b.garage===c.garage).map(b=>option(b.id,b.id+' · '+vehicleModelType(b),value)).join('')}</select></label>`;}
 export const bulletinRoute=p=>['tsbs','parts','recalls','tsb-team','sis','document-library'].includes(p.split(/[/?]/)[0]);
-export function instructionHub(c){return frame('Instructions',`<div class="sop-hub-grid tsb-hub">${[['document-library/sop','SOPs','Operating procedures'],['document-library/si','SIs','Standard instructions'],['tsbs','TSBs','Changes to read and acknowledge'],['parts','Parts lookup','Find the current replacement'],['recalls','Safety recalls','Affected buses and remedies']].map(([p,t,s])=>`<button type="button" class="tap-tile sop-tile" data-go="${p}"><strong>${t}</strong><small>${s}</small></button>`).join('')}</div>`,'home');}
+const instructionHubIcons={
+ sop:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',
+ si:'M4 5h2M10 5h10M4 12h2M10 12h10M4 19h2M10 19h10',
+ tsb:'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',
+ parts:'M3 7l9-5 9 5v10l-9 5-9-5zM3 7l9 5 9-5M12 12v10',
+ recall:'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM12 8v5M12 16v1'
+};
+export function instructionHub(c){return frame('Instructions',`<div class="sop-hub-grid tsb-hub">${[['document-library/sop','SOPs','Operating procedures','sop'],['document-library/si','SIs','Standard instructions','si'],['tsbs','TSBs','Changes to read and acknowledge','tsb'],['parts','Parts lookup','Find the current replacement','parts'],['recalls','Safety recalls','Affected buses and remedies','recall']].map(([p,t,s,icon])=>`<button type="button" class="tap-tile sop-tile" data-go="${p}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${instructionHubIcons[icon]}"/></svg><strong>${t}</strong><small>${s}</small></button>`).join('')}</div>`,'home');}
 export function documentLibrary(c,kind='sop',admin=false){
  const p=new URLSearchParams(c.page.split('?')[1]||''),q=(p.get('q')||'').toLowerCase(),name=kind==='si'?'SIs':'SOPs',base=admin?'content/'+(kind==='si'?'sis':'sops')+'/library':'document-library/'+kind;
  const all=(c.content.sops||[]).filter(x=>documentKind(x)===kind&&x.status!=='Draft'&&[x.title,x.reference,x.revision].join(' ').toLowerCase().includes(q)),page=pageRows(all,p);
