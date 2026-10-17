@@ -9,7 +9,7 @@ import {isMyInspection} from './checks-flow.js';
 const paths={instruction:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',action:'M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 4-4-4z'};
 const icon=kind=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[kind]}"/></svg>`;
 const overdue=x=>x.reviewDate&&x.reviewDate<today();
-const section=(title,body)=>body?`<section class="my-day-section"><h2>${title}</h2><div class="my-day-list">${body}</div></section>`:'';
+const section=(title,body,showTitle=true)=>body?`<section class="my-day-section"${showTitle?'':` aria-label="${title}"`}>${showTitle?`<h2>${title}</h2>`:''}<div class="my-day-list">${body}</div></section>`:'';
 const dateOrder=(a,b)=>a.date.localeCompare(b.date)||(a.time||'99').localeCompare(b.time||'99');
 const jobOrder=(a,b)=>(a.status==='In progress'?0:1)-(b.status==='In progress'?0:1)||dateOrder(a,b);
 
@@ -50,7 +50,7 @@ export function myDayView(c){
  const inspectionCards=inspections.map(i=>`<button type="button" class="my-day-card my-day-job" data-go="inspection/${esc(i.id)}"><span class="my-day-card-top"><strong>${esc(i.vehicle)}</strong><span class="ops-badge working">In progress</span></span><span class="my-day-title">Bus inspection</span><span class="my-day-next">Continue inspection <span aria-hidden="true">→</span></span></button>`).join('');
  const actionCards=actions.map(a=>`<button type="button" class="my-day-card my-day-action" data-go="actions/${esc(a.id)}">${icon('action')}<span>${a.vehicle?`<span class="my-day-meta">${esc(a.vehicle)}</span>`:''}<strong>${esc(a.title)}</strong><span class="my-day-next">${a.returnNotes?'Returned · update action':'Update action'} <span aria-hidden="true">→</span></span></span></button>`).join('');
  const noWork=!jobs.length&&!actions.length&&!inspections.length&&!instructions.length;
- return `<section class="ops-page my-day">${active?'<header class="my-day-heading"><h1>My day</h1><button type="button" class="secondary my-day-end" data-operation="end_day">End day</button></header>':'<h1>My day</h1><button type="button" class="my-day-toggle" data-operation="shift_start">Start day</button>'}${section('Before you start',before)}${section('My jobs',jobCards)}${section('Continue inspections',inspectionCards)}${section('Assigned actions',actionCards)}${noWork?'<p class="my-day-empty">Nothing assigned right now. New work will appear here.</p>':''}</section>`;
+ return `<section class="ops-page my-day">${active?'<header class="my-day-heading"><h1>My day</h1><button type="button" class="secondary my-day-end" data-operation="end_day">End day</button></header>':'<h1>My day</h1><button type="button" class="my-day-toggle" data-operation="shift_start">Start day</button>'}${section('Before you start',before)}${section('My jobs',jobCards,false)}${section('Continue inspections',inspectionCards)}${section('Assigned actions',actionCards)}${noWork?'<p class="my-day-empty">Nothing assigned right now. New work will appear here.</p>':''}</section>`;
 }
 
 export function myJobRecordsView(c){
