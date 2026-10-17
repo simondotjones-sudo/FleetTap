@@ -63,6 +63,15 @@
 .sop-library>.tap-content{justify-content:flex-start}
 
 /* Keep questions, citations and decisions together; let the page scroll naturally. */
+.tap-tile[data-section-complete="true"]{border:2px solid #33834c}
+.tap-tile[data-section-complete="true"] svg{background:#e9f3eb;color:#276b3c}
+.tap-heading.question-heading{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px;width:100%;max-width:880px;margin:0 auto}
+.question-heading h1{font-size:clamp(24px,3vw,36px)}
+.question-arrow{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:10px;border:1px solid #d4d4cc;border-radius:14px;background:white;color:#333;touch-action:manipulation}
+.question-arrow svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.question-arrow:disabled{opacity:.3;cursor:default}
+.question-arrow:focus-visible{outline:3px solid #2c8ddd;outline-offset:3px}
+.question-browse{touch-action:pan-y pinch-zoom}
 .question-screen .tap-content{justify-content:flex-start;gap:20px;overflow:visible}
 .question-copy{width:100%;max-width:880px;margin:0 auto}
 .question-screen .tap-task-text{color:#111;font-weight:500;line-height:1.42;max-height:none;overflow:visible;padding:0 4px}
