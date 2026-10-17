@@ -15,7 +15,7 @@ export function controlsView(c){
  const due=x=>x.reviewDate&&x.reviewDate<today(),ackFor=x=>acknowledgement(c.state,c.garage,c.me.id,x);
  const scope=x=>{const selected=buses.filter(b=>applies(x,b));return `<details><summary>${x.target==='model'?esc(x.targetModel)+' · ':''}${selected.length} applicable buses</summary><p>${selected.map(b=>esc(b.id)).join(', ')}</p></details>`;};
  const tsbs=publishedBulletins(c.content).filter(x=>buses.some(b=>targetMatches(x,b,c.state.recallCases)));
- let body='',title='Required instructions';
+ let body='',title=id==='acknowledged'?'Acknowledged Instructions':'New Instructions';
  if(id==='rechecks'){
   title='Measurement rechecks';
   body=c.state.inspections.filter(i=>i.garage===c.garage&&!i.deletedAt).flatMap(i=>Object.entries(i.rechecks||{}).filter(([,r])=>!r.resolvedAt).map(([task,r])=>{const t=tasksFor(i).find(t=>t.id===task),n=tasksFor(i).filter(t=>!t.blocked).findIndex(t=>t.id===task);return `<article class="card"><h2>${esc(i.vehicle)} · ${esc(t?.question||t?.text||'Inspection reading')}</h2><p>${esc(r.worker)}</p><p>${(t?taskReadings(t):[]).map((f,j)=>esc(f[0]+': '+r.readings[j]+' '+f[1])).join(' · ')}</p>${go('inspection/'+i.id+'/item/'+n,'Open recheck')}</article>`;})).join('')||'<p>No outstanding rechecks.</p>';

@@ -30,7 +30,7 @@ export function preparePageNavigation(workspace){
 export function menuSections(user){
  const sections=[];
  if(manager(user))sections.push({title:'My Garage',items:[['garage-today','Garage Today'],['performance','Performance'],['manage','Manage FleetTap'],['fleet','Fleet']]});
- sections.push({title:'My Work',items:[['my-jobs','My day'],['required-instructions','Required instructions'],['actions','My Actions'],...(user?.role==='supervisor'?[['reviews','Review & sign off']]:[])]});
+ sections.push({title:'My Work',items:[['my-jobs','My day'],['required-instructions','New Instructions'],['actions','My Actions'],...(user?.role==='supervisor'?[['reviews','Review & sign off']]:[])]});
  sections.push({title:'My Records',items:[['my-jobs/records','Job records'],['my-checks','Inspection records']]});
  if(user?.role==='platform_admin')sections.push({title:'Platform Admin',items:[['roadmap','Roadmap']]});
  return sections;
