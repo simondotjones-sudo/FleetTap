@@ -1,3 +1,4 @@
+import {downtimeAttribution} from './downtime-attribution.js';
 import {criticalFaults,openCriticalFaults} from './critical-safety.js';
 import {manager,workerName} from './roles.js';
 import {fleetModel,vehicleModelType} from './fleet-models.js';
@@ -62,7 +63,8 @@ export function performanceCommand(s,g,u,action,v={},id='',content={},now=new Da
   if(!old&&v.requestId){const prior=s.downtime.find(e=>e.garage===g&&e.requestId===v.requestId&&e.createdBy===u.id);if(prior)return {id:prior.id};}
   const times=validEpisode(s,g,{...v,vehicle},id,now.getTime()),reason=text(v.reason,160);requireThat(reason,'Record why the bus is off road.');requireThat(text(v.changeReason),'Record the source or reason for this entry.');
   if(old?.workDays?.length)requireThat(old.workDays.every(w=>dayStart(w.date)<Date.parse(times.endedAt||at)&&dayStart(nextDate(w.date))>Date.parse(times.startedAt)),'Recorded mechanic days must remain within the off-road period.');
-  const row={...old,id:old?.id||crypto.randomUUID(),garage:g,vehicle,...times,reason,notes:text(v.notes,4000),createdBy:old?.createdBy||u.id,requestId:old?.requestId||text(v.requestId,40),createdAt:old?.createdAt||at,updatedAt:at,rates:old?.rates||{downtime:s.downtimeRates?.downtime??190,mechanic:s.downtimeRates?.mechanic??87},warrantySnapshot:old?.warrantySnapshot||coverage(b,content),audit:old?.audit||[],workDays:old?.workDays||[]};
+  const attribution=downtimeAttribution(s,g,vehicle,v,old||{});
+  const row={...old,...attribution,id:old?.id||crypto.randomUUID(),garage:g,vehicle,...times,reason,notes:text(v.notes,4000),createdBy:old?.createdBy||u.id,requestId:old?.requestId||text(v.requestId,40),createdAt:old?.createdAt||at,updatedAt:at,rates:old?.rates||{downtime:s.downtimeRates?.downtime??190,mechanic:s.downtimeRates?.mechanic??87},warrantySnapshot:old?.warrantySnapshot||coverage(b,content),audit:old?.audit||[],workDays:old?.workDays||[]};
   if(row.manufacturerNotifiedAt)requireThat(Date.parse(row.manufacturerNotifiedAt)>=Date.parse(times.startedAt)&&(!times.endedAt||Date.parse(row.manufacturerNotifiedAt)<=Date.parse(times.endedAt)),'The manufacturer notification must stay within this off-road period.');
   if(row.manufacturerRepairedAt&&times.endedAt)requireThat(Date.parse(row.manufacturerRepairedAt)<=Date.parse(times.endedAt),'Return time cannot precede the manufacturer repair.');
   if(old)audit(row,'Off-road record amended',{...old,audit:undefined});else audit(row,'Off-road period recorded',null);

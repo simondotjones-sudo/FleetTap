@@ -3,7 +3,7 @@ import {dictationButton,toggleDictation} from './dictation.js';
 // Passwords, files and hidden server identifiers are never persisted.
 let context=null,pending=null,restoring=false;
 const memory=new Map();
-const eligible=f=>f?.closest?.('#workspace')&&!['auth-form','password-form'].includes(f.id)&&!f.hasAttribute('data-timeline-filter')&&!f.hasAttribute('data-filter-form')&&!f.hasAttribute('data-fault-analysis-filters')&&!f.hasAttribute('data-fault-analysis-search')&&f.dataset.performanceForm!=='filters';
+const eligible=f=>f?.closest?.('#workspace')&&!['auth-form','password-form'].includes(f.id)&&!f.hasAttribute('data-timeline-filter')&&!f.hasAttribute('data-filter-form')&&!f.hasAttribute('data-downtime-filters')&&!f.hasAttribute('data-fault-analysis-filters')&&!f.hasAttribute('data-fault-analysis-search')&&f.dataset.performanceForm!=='filters';
 const key=f=>{const c=context?.();if(!c||!eligible(f))return null;return ['fleettap-draft',c.me.id,c.garage,c.page,f.id||f.dataset.operationForm||f.dataset.contentForm||f.dataset.adminForm||f.dataset.releaseForm||f.dataset.kind||'form',f.dataset.id||'',Array.from(f.parentNode.querySelectorAll('form')).indexOf(f)].join(':');};
 function read(k){try{return memory.get(k)||JSON.parse(sessionStorage.getItem(k)||'null');}catch{return memory.get(k);}}
 function write(k,v){memory.set(k,v);try{sessionStorage.setItem(k,JSON.stringify(v));}catch{}}
