@@ -55,7 +55,7 @@ function editor(c,x){
  </form>`,'tsbs');
 }
 function partNotice(p){return `<div class="tsb-part"><div class="tsb-part-swap"><strong>${esc(p.old)}</strong><span aria-label="replaced by">→</span><strong>${esc(p.replacement)}</strong></div><p>${esc([p.manufacturer,p.description].filter(Boolean).join(' · '))}</p>${p.conditions?`<p><strong>Fitting conditions:</strong> ${esc(p.conditions)}</p>`:''}${p.associated?`<p><strong>Also required:</strong> ${esc(p.associated)}</p>`:''}<p><strong>Existing stock:</strong> ${esc(stockRules.find(([k])=>k===p.stock)?.[1])}</p>${p.stockNotes?`<p>${esc(p.stockNotes)}</p>`:''}</div>`;}
-function returnRoute(c){const p=new URLSearchParams(c.page.split('?')[1]||''),to=p.get('return');return to&&/^(my-jobs|garage-today|inspection|checklists|actions|recalls)(\/|$)/.test(to)?to:'my-jobs';}
+function returnRoute(c){const p=new URLSearchParams(c.page.split('?')[1]||''),to=p.get('return');return to&&/^(my-jobs|garage-today|inspection|checklists|actions|recalls|org-sop)(\/|$)/.test(to)?to:'my-jobs';}
 function reader(c,x){
  const done=completionFor(c.state,c.me.id,x),learning=learningFor(c.state,c.me.id,x),applicable=c.state.vehicles.some(b=>b.garage===c.garage&&targetMatches(x,b,c.state.recallCases));
  const next=returnRoute(c);
