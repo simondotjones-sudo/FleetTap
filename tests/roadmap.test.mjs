@@ -11,9 +11,9 @@ import {hash,randomToken} from '../server/security.mjs';
 import {roadmapSeeds,validateBrief,statuses} from '../src/roadmap-data.js';
 import {roadmapView,demoBuses} from '../src/roadmap-ui.js';
 test('roadmap validation and demo access',()=>{
- assert.equal(roadmapSeeds.length,13);assert.throws(()=>validateBrief({...roadmapSeeds[0],status:'bogus'}));
+ assert.equal(roadmapSeeds.length,15);assert.throws(()=>validateBrief({...roadmapSeeds[0],status:'bogus'}));
  assert.deepEqual(statuses,['Available','Idea','In dev']);
- assert.deepEqual(statuses.map(status=>roadmapSeeds.filter(f=>f.status===status).length),[10,1,2]);
+ assert.deepEqual(statuses.map(status=>roadmapSeeds.filter(f=>f.status===status).length),[11,2,2]);
  for(const role of ['supervisor','mechanic'])assert.match(roadmapView({me:{role},page:'garage-today'}),/access required/);
  for(const role of ['organisation_admin','garage_manager']){assert.match(roadmapView({me:{role},page:'garage-today'}),/Sample data/);assert.match(roadmapView({me:{role},page:'roadmap'}),/Platform Admin access required/);}
  assert.equal(demoBuses.length,6);assert.match(roadmapView({me:{role:'platform_admin'},page:'garage-today'}),/DEMO-101/);
@@ -28,7 +28,7 @@ test('roadmap persists edits and feedback, rejects unauthorised and stale writes
  const cookies={};for(const role of ['platform_admin','organisation_admin']){const token=randomToken();const [u]=await sql`INSERT INTO users(email,name,role,organisation_id) VALUES(${role+'@test.invalid'},${'Test '+role},${role},${role==='platform_admin'?null:org.id}) RETURNING id`;await sql`INSERT INTO sessions(token_hash,user_id,credential_version,expires_at) VALUES(${hash(token)},${u.id},1,now()+interval '1 hour')`;cookies[role]='__Host-fleettap_session='+token;}
  const call=(body,role='platform_admin',requestOrigin=origin)=>endpoint(new Request(origin+'/.netlify/functions/roadmap',{method:body?'POST':'GET',headers:{cookie:cookies[role]||'',origin:requestOrigin,'content-type':'application/json'},body:body?JSON.stringify(body):undefined}),ctx);
  assert.equal((await call(null,'none')).status,401);assert.equal((await call(null,'organisation_admin')).status,403);
- assert.equal((await (await call()).json()).features.length,13);
+ assert.equal((await (await call()).json()).features.length,15);
  const b={action:'brief',id:'garage-today',version:0,values:{...roadmapSeeds.find(f=>f.id==='garage-today'),title:'Meeting brief'}};
  assert.equal((await call(b,'organisation_admin')).status,403);assert.equal((await call(b,'platform_admin','https://foreign.test')).status,403);
  const race=await Promise.all([call(b),call(b)]);assert.deepEqual(race.map(x=>x.status).sort(),[200,409]);
@@ -49,7 +49,7 @@ test('roadmap persists edits and feedback, rejects unauthorised and stale writes
  const reviewed=(await (await call()).json()).features;
  for(const seed of roadmapSeeds){
   const prior=before.find(f=>f.id===seed.id),current=reviewed.find(f=>f.id===seed.id);
-  const reviewedStatus=['voice-updates','workshop-knowledge','workshop-planner'].includes(seed.id)?'In dev':seed.status;
+  const reviewedStatus=['downtime-analysis','maintenance-cost-km'].includes(seed.id)?prior.data.status:['voice-updates','workshop-knowledge','workshop-planner'].includes(seed.id)?'In dev':seed.status;
   assert.equal(current.status,reviewedStatus,seed.id);
   assert.equal(current.title,prior.data.title);assert.deepEqual(current.feedback,prior.data.feedback);
   assert.equal(current.version,prior.version+(prior.data.status===reviewedStatus?0:1));
