@@ -2,7 +2,7 @@ import {criticalTask} from './critical-safety.js';
 import {pm3} from './pm3.js';
 
 export const PM3_ID='pm3';
-export function templateFor(state){const t=state.inspectionTemplate||{id:PM3_ID,version:1,title:'SG271+ · PM3',tasks:structuredClone(pm3),sourceId:null};return {...t,tasks:(t.tasks||pm3).map(task=>({...task,criticalSafety:criticalTask(task)}))};}
+export function templateFor(state){const t=state.inspectionTemplate||{id:PM3_ID,version:1,title:'SG271+ · PM3',tasks:structuredClone(pm3),sourceId:null};return {...t,tasks:(t.tasks||pm3).map(task=>({...task,criticalSafety:criticalTask(task),visualDefectPhotoRequired:task.visualDefectPhotoRequired===true}))};}
 export const tasksFor=inspection=>inspection?.templateSnapshot?.tasks||pm3;
 export const fieldsFor=task=>task?.fields;
 export const isPM3=i=>i?.templateId===PM3_ID||i?.template?.startsWith('TO-PMS 035');
@@ -49,7 +49,8 @@ export function editTemplate(state,values,actor){
    let fields=old?.fields;
    // Existing source measurement tolerances remain attached when editing wording.
    if(values.criticalSafety!==undefined&&typeof values.criticalSafety!=='boolean')throw Error('Choose a valid critical safety setting.');
-   const item={...old,criticalSafety:values.criticalSafety??(old?criticalTask(old):false),id:old?.id||'q-'+crypto.randomUUID(),section,number:old?.number||String(t.tasks.filter(x=>x.section===section).length+1),page,question,text:instruction,conditional:!!values.conditional,requiresAcknowledgement:values.requiresAcknowledgement===undefined?!!old?.requiresAcknowledgement:!!values.requiresAcknowledgement,blocked:false,...(fields?{fields}: {})};
+   if(values.visualDefectPhotoRequired!==undefined&&typeof values.visualDefectPhotoRequired!=='boolean')throw Error('Choose a valid visual fault photo setting.');
+   const item={...old,visualDefectPhotoRequired:values.visualDefectPhotoRequired??old?.visualDefectPhotoRequired??false,criticalSafety:values.criticalSafety??(old?criticalTask(old):false),id:old?.id||'q-'+crypto.randomUUID(),section,number:old?.number||String(t.tasks.filter(x=>x.section===section).length+1),page,question,text:instruction,conditional:!!values.conditional,requiresAcknowledgement:values.requiresAcknowledgement===undefined?!!old?.requiresAcknowledgement:!!values.requiresAcknowledgement,blocked:false,...(fields?{fields}: {})};
    if(old)t.tasks[n]=item;else t.tasks.push(item);
    const order=[...new Set(t.tasks.map(x=>x.section))];t.tasks.sort((a,b)=>order.indexOf(a.section)-order.indexOf(b.section));
    record(t,actor,old?'Edit question':'Add question',old||null);

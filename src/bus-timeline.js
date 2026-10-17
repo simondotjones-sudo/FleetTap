@@ -10,7 +10,7 @@ export function busTimeline(s,g,id){
  for(const i of list('inspections')){
   const link='inspection-record/'+i.id;
   add('Inspection',i.created,'Inspection started · '+i.id,i.craftworker,i.status+(i.deletedAt?' · deleted':''),link,i.id);
-  for(const a of i.audit||[]){const value=a.value;add('Inspection',a.at,a.action||(a.item?(tasksFor(i).find(t=>t.id===a.item)?.question||tasksFor(i).find(t=>t.id===a.item)?.text||'Inspection question')+' · '+(value?.result||'Updated'):'Inspection updated'),a.actor||value?.worker||a.worker,value?[value.notes,measurementText(i,a.item,value.readings),value.recheck?'Recheck: '+value.recheck.note:''].filter(Boolean).join(' · '):a.reason||a.notes||measurementText(i,a.item,a.readings),link,i.id);}
+  for(const a of i.audit||[]){const value=a.value;add('Inspection',a.at,a.action||(a.item?(tasksFor(i).find(t=>t.id===a.item)?.question||tasksFor(i).find(t=>t.id===a.item)?.text||'Inspection question')+' · '+(value?.result||'Updated'):'Inspection updated'),a.actor||value?.worker||a.worker,value?[value.notes,measurementText(i,a.item,value.readings),value.recheck?'Recheck: '+value.recheck.note:'',value.repair?'Repair reported: '+value.repair.work+' · Recheck: '+value.repair.recheck:''].filter(Boolean).join(' · '):a.reason||a.notes||measurementText(i,a.item,a.readings),link,i.id);}
   if(i.completedAt)add('Inspection',i.completedAt,'Inspection signed off',i.completedBy,i.completedDate,link,i.id);
  }
  for(const k of ['faults','reports','actions'])for(const r of list(k)){
