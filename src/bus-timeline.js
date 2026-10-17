@@ -1,3 +1,4 @@
+import {isCriticalFault} from './critical-safety.js';
 import {taskReadings} from './inspections.js';
 import {tasksFor} from './templates.js';
 export function busTimeline(s,g,id){
@@ -13,9 +14,10 @@ export function busTimeline(s,g,id){
   if(i.completedAt)add('Inspection',i.completedAt,'Inspection signed off',i.completedBy,i.completedDate,link,i.id);
  }
  for(const k of ['faults','reports','actions'])for(const r of list(k)){
-  const type={faults:'Fault',reports:'Report',actions:'Action'}[k],link=k==='actions'?'actions/'+r.id:'records/'+k+'/'+r.id;
+  const type=k==='faults'&&isCriticalFault(s,r)?'Critical Safety Fault':{faults:'Fault',reports:'Report',actions:'Action'}[k],link=k==='actions'?'actions/'+r.id:'records/'+k+'/'+r.id;
   add(type,r.created||r.audit?.[0]?.at,type+' · '+r.title,r.createdBy||r.owner,r.description||r.evidence,link,r.id);
   for(const a of r.audit||[])add(type,a.at,a.action||'Updated',a.actor,a.notes||a.reason||a.evidence,link,r.id);
+  if(r.safetyResolution){const v=r.safetyResolution;add('Critical Safety Fault',v.at,'Repair and recheck verified',v.actor,'Repair: '+v.repairEvidence+' · Recheck: '+v.recheckEvidence,link,r.id);}
   if(r.closedAt)add(type,r.closedAt,type+' closed',r.closedBy,r.closureNotes,link,r.id);
  }
  for(const j of list('jobs'))for(const a of j.audit||[])add('Job',a.at,j.title+' · '+a.event,a.actor,a.note||a.reason||'', 'my-jobs/'+j.id,j.id);

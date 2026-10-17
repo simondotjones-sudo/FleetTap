@@ -1,3 +1,4 @@
+import {criticalFaults,openCriticalFaults} from './critical-safety.js';
 import {manager,workerName} from './roles.js';
 import {fleetModel,vehicleModelType} from './fleet-models.js';
 import {validDate,addInterval} from './scheduling.js';
@@ -108,10 +109,11 @@ export function performanceReport(s,g,content,{from,to,model='',type='',bus=''}=
    const rate=e.rates||{downtime:190,mechanic:87};return {episode:e,days,covered,outside,unknown,late,mechanicDays:workDays.length,workDates:workDays,downtimeCost:days*rate.downtime,mechanicCost:workDays.length*rate.mechanic,outsideCost:outside*rate.downtime,lateCost:late*rate.downtime};
   });
   const sum=k=>details.reduce((n,d)=>n+d[k],0),days=sum('days'),downtimeCost=sum('downtimeCost'),mechanicCost=sum('mechanicCost');
-  return {bus:b,model:modelKey(b),type:fleetModel(vehicleModelType(b))?.technology||'Other',coverage:coverage(b,content),episodes:details,visits:details.length,days,covered:sum('covered'),outside:sum('outside'),unknown:sum('unknown'),late:sum('late'),mechanicDays:sum('mechanicDays'),downtimeCost,mechanicCost,cost:downtimeCost+mechanicCost,outsideCost:sum('outsideCost'),lateCost:sum('lateCost'),longest:Math.max(0,...details.map(d=>d.days)),offRoad:!!activeDowntime(s,g,b.id)};
+  const critical=criticalFaults(s,g,b.id),raised=critical.filter(f=>Date.parse(f.created)>=lo&&Date.parse(f.created)<hi),unresolved=openCriticalFaults(s,g,b.id);
+  return {criticalRaised:raised.length,criticalOpen:unresolved.length,criticalBusesHeld:unresolved.length?1:0,criticalChecks:new Set(raised.map(f=>f.inspection||f.checklistRun).filter(Boolean)).size,bus:b,model:modelKey(b),type:fleetModel(vehicleModelType(b))?.technology||'Other',coverage:coverage(b,content),episodes:details,visits:details.length,days,covered:sum('covered'),outside:sum('outside'),unknown:sum('unknown'),late:sum('late'),mechanicDays:sum('mechanicDays'),downtimeCost,mechanicCost,cost:downtimeCost+mechanicCost,outsideCost:sum('outsideCost'),lateCost:sum('lateCost'),longest:Math.max(0,...details.map(d=>d.days)),offRoad:!!activeDowntime(s,g,b.id)};
  });
- const totals={};for(const k of ['days','covered','outside','unknown','late','mechanicDays','downtimeCost','mechanicCost','cost','outsideCost','lateCost','visits'])totals[k]=rows.reduce((n,r)=>n+r[k],0);
- const models=[...new Set(rows.map(r=>r.model))].map(model=>{const group=rows.filter(r=>r.model===model),r={model,buses:group.length};for(const k of ['days','outside','unknown','late','cost','visits'])r[k]=group.reduce((n,x)=>n+x[k],0);return r;});
+ const totals={};for(const k of ['criticalRaised','criticalOpen','criticalBusesHeld','criticalChecks','days','covered','outside','unknown','late','mechanicDays','downtimeCost','mechanicCost','cost','outsideCost','lateCost','visits'])totals[k]=rows.reduce((n,r)=>n+r[k],0);
+ const models=[...new Set(rows.map(r=>r.model))].map(model=>{const group=rows.filter(r=>r.model===model),r={model,buses:group.length};for(const k of ['criticalRaised','criticalOpen','criticalBusesHeld','criticalChecks','days','outside','unknown','late','cost','visits'])r[k]=group.reduce((n,x)=>n+x[k],0);return r;});
  return {from,to,rows:rows.sort((a,b)=>b.days-a.days||a.bus.id.localeCompare(b.bus.id)),models:models.sort((a,b)=>b.days-a.days),totals,offRoad:rows.filter(r=>r.offRoad).length,unknownWarranty:rows.filter(r=>!r.coverage.known).length,repeatVisits:rows.filter(r=>r.visits>1).length};
 }
 // Staff see the operational off-road marker, never management cost/case detail.

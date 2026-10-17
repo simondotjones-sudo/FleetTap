@@ -1,3 +1,4 @@
+import {criticalStep,criticalCheckBlocked,isCriticalFault} from './critical-safety.js';
 import {controlFields} from './active-controls.js';
 import {addRecord} from './model.js';
 export const sopPublished=x=>!x.status||x.status==='Published';
@@ -19,6 +20,12 @@ export function saveContent(data,kind,values,actor){
  const steps=String(values.steps||'').split('\n').map(s=>s.trim()).filter(Boolean);
  if((status==='Published'&&!steps.length)||steps.length>100||steps.some(s=>s.length>1000))throw Error('Enter 1–100 steps or questions, one per line (up to 1,000 characters each).');
  const extra={};
+ if(kind==='checklists'){
+  if(values.criticalSafetySteps===undefined&&old?.criticalSafetySteps?.length&&JSON.stringify(steps)!==JSON.stringify(old.steps))throw Error('Review the Critical Safety Fault flags after changing questions.');
+  const flags=values.criticalSafetySteps??old?.criticalSafetySteps??[];
+  if(!Array.isArray(flags)||flags.some(n=>!Number.isInteger(n)||n<0||n>=steps.length))throw Error('Choose valid critical safety questions.');
+  extra.criticalSafetySteps=[...new Set(flags)].sort((a,b)=>a-b);
+ }
  if(kind==='sops'){
   Object.assign(extra,controlFields({...values,status},working));
   for(const [key,max] of [['summary',1200],['reference',200],['revision',80],['scope',2000],['precautions',4000]]){extra[key]=String(values[key]??working?.[key]??'').trim();if(extra[key].length>max)throw Error(`${key} is too long (maximum ${max} characters).`);}
@@ -36,6 +43,7 @@ export function checklistCommand(state,garage,action,values,id,content,actor){
  const all=state.checklistRuns??=[];
  if(action==='checklist_start'){
   const template=content.checklists?.find(t=>t.id===values.template);if(!template)throw Error('Checklist unavailable.');
+  if(template.criticalSafetySteps?.length&&!values.vehicle)throw Error('Choose a bus for a checklist with Critical Safety Fault questions.');
   if(values.vehicle&&!state.vehicles.some(v=>v.garage===garage&&v.id===values.vehicle))throw Error('Choose a bus in this garage.');
   const run={id:crypto.randomUUID(),garage,vehicle:values.vehicle||'',template:structuredClone(template),status:'In progress',created:new Date().toISOString(),createdBy:actor,answers:{}};delete run.template.audit;all.unshift(run);return run;
  }
@@ -47,6 +55,8 @@ export function checklistCommand(state,garage,action,values,id,content,actor){
  }
  if(action==='checklist_signoff'){
   if(run.status!=='Awaiting review')throw Error('Submit the checklist first.');
+  if(criticalCheckBlocked(state,run))throw Error('Repair and verify all Critical Safety Faults before signing off this checklist.');
+  if(run.template.steps.some((_,n)=>!run.answers[n]))throw Error('Answer every question before sign-off.');
   if(Object.values(run.answers).some(a=>a.result==='Not completed'))throw Error('Unfinished items must be resolved before sign-off.');
   const notes=String(values.notes||'').trim();if(notes.length<5||notes.length>4000)throw Error('Enter the sign-off notes (5–4000 characters).');
   run.status='Completed';run.completedBy=actor;run.completedAt=new Date().toISOString();run.reviewNotes=notes;return {id};
@@ -58,7 +68,9 @@ export function checklistCommand(state,garage,action,values,id,content,actor){
   const notes=String(values.notes||'').trim().slice(0,4000);if(values.result!=='OK'&&!notes)throw Error('Add details for this result.');
   (run.audit??=[]).push({item:n,previous:run.answers[n]||null,actor,at:new Date().toISOString()});
   let fault=run.answers[n]?.fault;
-  if(values.result==='Fault'&&!fault){const record=addRecord(state,run.vehicle?'faults':'reports',{garage,vehicle:run.vehicle,title:run.template.title+': '+run.template.steps[n],description:notes,createdBy:actor,type:'Checklist issue'});fault=record.id;}
+  if(fault&&values.result!=='Fault'&&(criticalStep(run.template,n)||isCriticalFault(state,state.faults.find(f=>f.id===fault&&f.garage===garage))))throw Error('A linked fault exists. Keep the fault result; repair and review are tracked separately.');
+  if(values.result==='Fault'&&fault&&state.faults.some(f=>f.id===fault&&f.garage===garage&&f.status==='Closed'))fault=null;
+  if(values.result==='Fault'&&!fault){const record=addRecord(state,run.vehicle?'faults':'reports',{garage,vehicle:run.vehicle,title:run.template.title+': '+run.template.steps[n],description:notes,createdBy:actor,type:'Checklist issue',checklistRun:run.id,item:String(n),criticalSafety:criticalStep(run.template,n),safetySource:{kind:'Checklist',templateVersion:run.template.version,question:run.template.steps[n],item:String(n)}});fault=record.id;}
   run.answers[n]={fault,result:values.result,notes,actor,at:new Date().toISOString()};return {id};
  }
  if(action==='checklist_submit'){

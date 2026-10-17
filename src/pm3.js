@@ -1,3 +1,4 @@
+import {criticalPM3Ids} from './critical-safety.js';
 export const pm3 = [
   {
     "id": "1-1",
@@ -1124,4 +1125,4 @@ export const pm3 = [
     "conditional": false,
     "blocked": false
   }
-];
+].map(task=>({...task,criticalSafety:criticalPM3Ids.has(task.id)}));

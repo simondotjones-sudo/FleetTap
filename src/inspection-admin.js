@@ -1,3 +1,4 @@
+import {criticalCheckBlocked} from './critical-safety.js';
 import {tasksFor,isPM3,templateFor} from './templates.js';
 import {validDate,today} from './scheduling.js';
 import {modelTypeForSave,vehicleModelType} from './fleet-models.js';
@@ -44,6 +45,7 @@ export function manageInspection(state,garage,id,values,actor){
   if(Object.values(i.rechecks||{}).some(x=>!x.resolvedAt))throw Error('Resolve all measurement rechecks first.');
   if(i.status!=='Awaiting review')throw Error('Submit the inspection for review first.');
   if(tasksFor(i).some(t=>t.blocked||!i.answers[t.id]||i.answers[t.id].result==='Not completed'))throw Error('Resolve all blocked and unfinished tasks before recording completion.');
+  if(criticalCheckBlocked(state,i))throw Error('Repair and verify all Critical Safety Faults before signing off this inspection.');
   if(!validDate(values.date)||values.date>today()||values.date<i.created.slice(0,10))throw Error('Choose a completion date between the inspection start and today.');
   audit(i,'Complete review',actor,why,{status:i.status});i.status='Completed';i.completedDate=values.date;i.completedAt=new Date().toISOString();i.completedBy=actor;return {id};
  }

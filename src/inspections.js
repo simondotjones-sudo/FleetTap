@@ -1,3 +1,4 @@
+import {criticalTask} from './critical-safety.js';
 import {pm3} from './pm3.js';
 import {modelTypeForSave} from './fleet-models.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
@@ -61,7 +62,8 @@ export function saveAnswer(state,id,garage,taskId,answer){
  const previous=i.answers[taskId];
  if(previous?.fault&&answer.result!=='Defect')throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
  const saved={...answer,...(previous?.recheck?{recheck:previous.recheck}:{}),worker:answer.worker.trim(),updated:new Date().toISOString(),fault:previous?.fault||null};
- if(answer.result==='Defect'&&!saved.fault){const f=addRecord(state,'faults',{garage,vehicle:i.vehicle,title:`${task.section} · item ${task.number}`,description:answer.notes,inspection:i.id,item:task.id});saved.fault=f.id;}
+ if(answer.result==='Defect'&&saved.fault&&state.faults.some(f=>f.id===saved.fault&&f.garage===garage&&f.status==='Closed'))saved.fault=null;
+ if(answer.result==='Defect'&&!saved.fault){const f=addRecord(state,'faults',{garage,vehicle:i.vehicle,title:`${task.section} · item ${task.number}`,description:answer.notes,inspection:i.id,item:task.id,criticalSafety:criticalTask(task),safetySource:{kind:'PM3',templateVersion:i.templateSnapshot?.version||1,question:task.question||task.text,item:task.id}});saved.fault=f.id;}
  if(pending&&!pending.resolvedAt){saved.recheck={first:structuredClone(pending),readings:[...answer.readings],note:answer.recheckNote,worker:answer.worker,at:saved.updated};pending.resolvedAt=saved.updated;}
  i.answers[taskId]=saved;i.audit.push({item:taskId,previous:previous||null,value:structuredClone(saved),at:saved.updated});return saved;
 }
