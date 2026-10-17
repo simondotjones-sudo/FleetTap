@@ -1,3 +1,4 @@
+import {backRoute} from './navigation.js';
 import {displayDate} from './display.js';
 import {author} from './roles.js';
 import {managerRecordsView,setupManagerRecords} from './manager-records.js';
@@ -15,7 +16,7 @@ const hubPaths={records:'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',report:'M12 5v14M5 1
 const tile=(page,title,sub,icon='records')=>`<button type="button" class="tap-tile admin-tile" ${page?`data-go="${esc(page)}"`:'id="export"'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${hubPaths[icon]}"/></svg><strong>${esc(title)}</strong><small>${esc(sub)}</small></button>`;
 const date=v=>esc(displayDate(v));
 const pill=s=>`<span class="pill ${s==='Overdue'?'critical':['Due today','Due soon','Awaiting review'].includes(s)?'attention':'status-neutral'}">${esc(s)}</span>`;
-const frame=(title,content,back='manage')=>`<section class="admin-tools"><div class="tap-heading"><h1>${esc(title)}</h1></div>${content}<div class="toolbar">${go(back,'← Back')}</div></section>`;
+const frame=(title,content,back='manage')=>`<section class="admin-tools"><div class="tap-heading"><h1>${esc(title)}</h1></div>${content}<div class="toolbar">${backRoute(back)}</div></section>`;
 const docURL=(c,id,page=1)=>`/.netlify/functions/documents?garage=${encodeURIComponent(c.garage)}&id=${encodeURIComponent(id)}#page=${page}`;
 export const adminRoute=page=>['manage','bus-edit','inspection-admin','template-admin','schedules','submitted-reports'].includes(page.split('/')[0]);
 let host,busy=false;

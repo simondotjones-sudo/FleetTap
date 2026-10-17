@@ -1,10 +1,11 @@
+import {backRoute} from './navigation.js';
 import {esc} from './api.js';
 import {reviewer,manager} from './roles.js';
 import {tasksFor} from './templates.js';
 import {photoGallery} from './photos.js';
 import {today} from './scheduling.js';
 const go=(p,t)=>`<button type="button" class="tap-small" data-go="${esc(p)}">${esc(t)}</button>`;
-const frame=(title,body)=>`<section class="admin-tools"><h1>${esc(title)}</h1>${body}<div class="toolbar">${go('reviews','Review queue')}</div></section>`;
+const frame=(title,body)=>`<section class="admin-tools"><h1>${esc(title)}</h1>${body}${backRoute('reviews')}</section>`;
 const kinds=['actions','faults','reports','inspections','checklistRuns','jobs'];
 const labels={actions:'Actions',faults:'Faults',reports:'Reports',inspections:'Inspections',checklistRuns:'Checklists',jobs:'Jobs'};
 const rows=(c,k)=>(c.state[k]||[]).filter(r=>r.garage===c.garage&&!r.deletedAt);

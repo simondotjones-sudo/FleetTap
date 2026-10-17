@@ -1,3 +1,4 @@
+import {backRoute} from './navigation.js';
 import {esc} from './api.js';
 import {today} from './scheduling.js';
 import {displayDate} from './display.js';
@@ -56,5 +57,5 @@ export function myDayView(c){
 export function myJobRecordsView(c){
  const jobs=garageJobs(c.state,c.garage).filter(j=>j.assigneeId===c.me.id),date=today();
  const groups=[['Current jobs',j=>['Assigned','In progress','Waiting'].includes(j.status)&&j.date<=date],['Upcoming jobs',j=>jobOpen(j)&&j.date>date],['Awaiting sign-off',j=>j.status==='Awaiting sign-off'&&j.date<=date],['Completed jobs',j=>j.status==='Completed'],['Cancelled jobs',j=>j.status==='Cancelled']];
- return `<section class="ops-page my-day"><h1>My job records</h1>${groups.map(([title,match])=>section(title,jobs.filter(match).sort((a,b)=>title==='Current jobs'?jobOrder(a,b):title==='Upcoming jobs'?dateOrder(a,b):b.date.localeCompare(a.date)).map(j=>personalJob(c,j,[],true)).join(''))).join('')}${jobs.length?'':'<p class="my-day-empty">No job records yet.</p>'}<div class="toolbar"><button type="button" class="secondary" data-go="my-jobs">Back to my day</button></div></section>`;
+ return `<section class="ops-page my-day"><h1>My job records</h1>${groups.map(([title,match])=>section(title,jobs.filter(match).sort((a,b)=>title==='Current jobs'?jobOrder(a,b):title==='Upcoming jobs'?dateOrder(a,b):b.date.localeCompare(a.date)).map(j=>personalJob(c,j,[],true)).join(''))).join('')}${jobs.length?'':'<p class="my-day-empty">No job records yet.</p>'}${backRoute('my-jobs')}</section>`;
 }

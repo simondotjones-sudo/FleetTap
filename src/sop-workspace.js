@@ -1,3 +1,4 @@
+import {backRoute} from './navigation.js';
 import {fleetModels} from './fleet-models.js';
 import {esc} from './api.js';
 import {author} from './roles.js';
@@ -8,7 +9,7 @@ export const sopIcon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${
 export const sopTile=(page,title,sub,icon='book')=>`<button type="button" class="tap-tile sop-tile" data-go="${esc(page)}">${sopIcon(icon)}<strong>${esc(title)}</strong><small>${esc(sub)}</small></button>`;
 export const sopPDFTile=(url,sub='Open the original document')=>`<a class="tap-tile sop-tile" href="${esc(url)}" target="_blank" rel="noopener">${sopIcon('pdf')}<strong>View source PDF</strong><small>${esc(sub)} · opens in a new tab</small></a>`;
 const go=(page,text)=>`<button class="tap-small" type="button" data-go="${esc(page)}">${esc(text)}</button>`;
-export const contentFrame=(title,body,back='content/sops',hub=false)=>`<section class="admin-tools content-work sop-workspace${hub?' content-hub':''}"><div class="tap-heading"><h1>${esc(title)}</h1></div>${body}<div class="toolbar">${go(back,'← Back')}</div></section>`;
+export const contentFrame=(title,body,back='content/sops',hub=false)=>`<section class="admin-tools content-work sop-workspace${hub?' content-hub':''}"><div class="tap-heading"><h1>${esc(title)}</h1></div>${body}<div class="toolbar">${backRoute(back)}</div></section>`;
 const frame=contentFrame;
 const tag=x=>`<span class="pill ${sopPublished(x)?'status-neutral':'attention'}">${sopPublished(x)?'Published':'Draft'}</span>`;
 const docURL=(c,x)=>'/.netlify/functions/sop-documents?'+new URLSearchParams({garage:c.garage,id:x.sourceId});

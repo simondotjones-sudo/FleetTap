@@ -5,7 +5,7 @@ import {controlsView,controlsBanner,setupControls} from './active-controls-ui.js
 import {performanceView,setupPerformance,performanceRoute,performanceBusy} from './performance-ui.js';
 import {operationsView,setupOperations,operationsRoute,operationsBusy,endDay} from './garage-operations-ui.js';
 import {dayShift,garageJobs} from './garage-operations.js';
-import {menuView} from './navigation.js';
+import {menuView,preparePageNavigation} from './navigation.js';
 import {myActionCount} from './action-assignment.js';
 import {roadmapView,setupRoadmap,roadmapRoute,roadmapBusy} from './roadmap-ui.js';
 import {sopUploadBusy} from './sop-workspace.js';
@@ -15,13 +15,13 @@ import {reviewer,author,roleLabel} from './roles.js';
 import {garageExport,managerRecordsView} from './manager-records.js';
 import {adminToolsView,setupAdminTools,adminRoute,adminBusy} from './admin-tools.js';
 import {fleetFlowView,setupFleet,fleetBusy,isFleetRoute} from './fleet-flow.js';
-import {actionsView,setupActions,actionsBusy,isActionsRoute} from './actions-flow.js';
+import {actionsView,setupActions,actionBack,actionsBusy,isActionsRoute} from './actions-flow.js';
 import {FLEETTAP_APP_VERSION} from './version.js';
 import {sopView} from './sop-guide.js';
-import {reportFlowView,setupReportFlow,reportBusy,isReportRoute} from './report-flow.js';
+import {reportFlowView,setupReportFlow,reportBack,reportBusy,isReportRoute} from './report-flow.js';
 import {stopDictation} from './dictation.js';
 import {photoGallery,previewPhotos,setupPhotoPicker} from './photos.js';
-import {tabletView,setupTablet,isTabletSaving} from './tablet.js';
+import {tabletView,setupTablet,tabletBack,isTabletSaving} from './tablet.js';
 import {api} from './api.js';
 import {adminView,manager,syncUserScope,setupAccess} from './admin-ui.js';
 import {checksFlowView,setupChecks,isChecksRoute} from './checks-flow.js';
@@ -79,6 +79,7 @@ function render(){
  const parts=page.split('/');
  $('#workspace').innerHTML=controlsBanner(tabletContext())+(busReleaseRoute(page)?busReleaseView(tabletContext()):parts[0]==='required-instructions'?controlsView(tabletContext()):performanceRoute(page)?performanceView(tabletContext()):operationsRoute(page)?operationsView(tabletContext()):roadmapRoute(page)?roadmapView(tabletContext()):['content','org-sop','checklists'].includes(parts[0])?contentView(tabletContext()):parts[0]==='reviews'?reviewView(tabletContext()):parts[0]==='records'?managerRecordsView(tabletContext()):adminRoute(page)?adminToolsView(tabletContext()):isFleetRoute(page)?fleet():isChecksRoute(page)?checks():isActionsRoute(page)?actions():parts[0]==='sops'?sops():parts[0]==='start'?tabletView(tabletContext()):parts[0]==='inspection'?tabletView(tabletContext()):parts[0]==='defect'?reports('faults'):(views[page]||home)());
 
+ preparePageNavigation($('#workspace'));
  restoreFormDrafts();
  if(page==='admin')syncUserScope(adminData,me);
  renderNavigation();
@@ -89,20 +90,25 @@ function renderNavigation(){
  $('#navigation-root').innerHTML=`<nav class="mobile-navigation" aria-label="Quick navigation"><span class="nav-highlight" style="transform:translateX(${['back','home','menu','ask'].indexOf(selected)*100}%)"></span>${[['back','Back'],['home','Home'],['menu','Menu'],['ask','Help']].map(([id,label])=>`<button data-nav="${id}" class="${selected===id?'selected':''}" aria-label="${id==='ask'?'FleetTap help':label}" ${id==='back'&&page==='home'&&!overlay?'disabled':''}>${icon(id==='ask'?'spark':id)}<span>${label}</span></button>`).join('')}</nav>`;
  $('#overlay-root').innerHTML=overlay?`<div class="navigation-shade" data-dismiss></div>${overlay==='menu'?`<aside class="navigation-drawer"><div class="row"><h2>Menu</h2><button class="icon-button" data-dismiss aria-label="Close menu">${icon('close')}</button></div><nav aria-label="Main menu">${menuView(me,page)}</nav></aside>`:`<section class="ask-panel" aria-label="FleetTap help"><div class="row"><h2>${icon('spark')} FleetTap help</h2><button class="icon-button" data-dismiss aria-label="Close help">${icon('close')}</button></div><p>You have <strong>${count} outstanding actions</strong>. There are <strong>${rows('faults').length} recorded defects</strong> in this garage.</p><div class="ask-suggestions"><button data-go="actions">My Actions</button><button data-go="sops">Find instructions</button></div></section>`}`:'';
 }
-// The floating Back button follows the current workflow's own back control.
+// Workflow steps use their own drafts; route history and explicit parent routes handle pages.
+function returnTo(page){goingBack=current()!==page;go(page);}
 function navigateBack(){
  if(overlay){overlay='';renderNavigation();return;}
+ if($('#workspace [data-operation-form="shift_end"]')){returnTo('my-jobs');return;}
  if(mode!=='list'){mode='list';render();return;}
- const local=$('#workspace [data-work-back],#workspace [data-instruction-done],#workspace [data-report-back],#workspace [data-action-back],#workspace [data-fleet-back]');
- if(local){local.click();return;}
- if(routeTrail.length){goingBack=true;go(routeTrail.pop());return;}
+ const before=current();
+ if(reportBack()||actionBack()||tabletBack()){
+  if(current()!==before){goingBack=true;if(routeTrail.at(-1)===current())routeTrail.pop();}
+  return;
+ }
+ if(routeTrail.length){returnTo(routeTrail.pop());return;}
  const root=current().split('/')[0];
- if(['my-jobs','garage-today'].includes(root)&&current()!==root){go(root);return;}
- const parent=[...document.querySelectorAll('#workspace .tap-footer [data-go],#workspace .toolbar [data-go]')].find(b=>/^(←|Back|Change bus|Choose a bus)/.test(b.textContent.trim()));
- if(parent){go(parent.dataset.go);return;}
- if(current().startsWith('roadmap/')){go('roadmap');return;}
- if(current().startsWith('inspection/')){const i=state.inspections.find(i=>i.id===current().split('/')[1]&&i.garage===garage);go(i?'checks/'+encodeURIComponent(i.vehicle):'checks');return;}
- go('home');
+ if(['my-jobs','garage-today'].includes(root)&&current()!==root){returnTo(root);return;}
+ const parent=$('#workspace').dataset.backRoute;
+ if(parent&&parent!==current()){returnTo(parent);return;}
+ if(current().startsWith('roadmap/')){returnTo('roadmap');return;}
+ if(current().startsWith('inspection/')){const i=state.inspections.find(i=>i.id===current().split('/')[1]&&i.garage===garage);returnTo(i?'checks/'+encodeURIComponent(i.vehicle):'checks');return;}
+ returnTo('home');
 }
 document.addEventListener('click',e=>{if(profile&&!e.target.closest('.profile-panel,#profile-trigger'))setProfile(false);const el=e.target.closest('button,[data-dismiss]');if(!el||isTabletSaving()||reportBusy()||actionsBusy()||fleetBusy()||adminBusy()||contentBusy()||sopUploadBusy())return;if(busReleaseBusy()||roadmapBusy()||operationsBusy()||performanceBusy())return;if(el.dataset.go){go(el.dataset.go);return;}if(el.dataset.vehicle){go('vehicle/'+el.dataset.vehicle);return;}if(el.dataset.mode){mode=el.dataset.mode;render();return;}if(el.id==='profile-trigger'){if(overlay){overlay='';renderNavigation();}setProfile(!profile);return;}if(el.hasAttribute('data-dismiss')){overlay='';renderNavigation();return;}if(el.dataset.nav){const n=el.dataset.nav;if(n==='home')go('home');else if(n==='back'){navigateBack();}else{overlay=overlay===n?'':n;profile=false;renderNavigation();}return;}});
 document.addEventListener('change',async e=>{if(e.target.name==='photos')previewPhotos(e.target);if(e.target.id==='garage-select'){if(busReleaseBusy()||performanceBusy()||operationsBusy()||reportBusy()||actionsBusy()||fleetBusy()||adminBusy()||contentBusy()||sopUploadBusy()){e.target.value=garage;return;}try{await reloadWorkspace(e.target.value);go('home');}catch(err){notify(err.message);}}if(['user-role','user-org'].includes(e.target.id))syncUserScope(adminData,me);});

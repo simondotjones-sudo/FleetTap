@@ -1,3 +1,4 @@
+import {backRoute,preparePageNavigation} from './navigation.js';
 import {myDayView,myJobRecordsView} from './my-day.js';
 import {clearWorkDrafts} from './work-drafts.js';
 import {clearUserDrafts} from './form-drafts.js';
@@ -72,7 +73,8 @@ async function run(action,values={},id='',form=null){
 }
 export function endDay(){
  if(busy)return;const c=host.context(),running=garageJobs(c.state,c.garage).filter(j=>j.assigneeId===c.me.id&&j.status==='In progress');
- document.querySelector('#workspace').innerHTML=`<section class="ops-page"><h1>End my day</h1><form class="card ops-form" data-operation-form="shift_end"><p>${running.length?`${running.length} job(s) still in progress will be paused for handover.`:'Your job records and checks are saved.'}</p><label>Handover for the next shift<textarea name="note" ${running.length?'required':''} maxlength="2000" rows="4" placeholder="Work outstanding, blockers and next steps">${esc(running.map(j=>j.vehicle+' · '+j.title+'\nNext: '+(j.handover||'')).join('\n\n'))}</textarea></label><button>End day & sign out</button><p class="form-error" role="alert"></p></form><div class="toolbar">${go('my-jobs','← Back to my day')}</div></section>`;
+ document.querySelector('#workspace').innerHTML=`<section class="ops-page"><h1>End my day</h1><form class="card ops-form" data-operation-form="shift_end"><p>${running.length?`${running.length} job(s) still in progress will be paused for handover.`:'Your job records and checks are saved.'}</p><label>Handover for the next shift<textarea name="note" ${running.length?'required':''} maxlength="2000" rows="4" placeholder="Work outstanding, blockers and next steps">${esc(running.map(j=>j.vehicle+' · '+j.title+'\nNext: '+(j.handover||'')).join('\n\n'))}</textarea></label><button>End day & sign out</button><p class="form-error" role="alert"></p></form><div class="toolbar">${backRoute('my-jobs')}</div></section>`;
+ preparePageNavigation(document.querySelector('#workspace'));
 }
 export function setupOperations(h){host=h;
  document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el||busy)return;if(el.dataset.operation){if(el.dataset.operation==='end_day')endDay();else run(el.dataset.operation,{},el.dataset.id);return;}if(el.dataset.opsView){view=el.dataset.opsView;host.render();}if(el.dataset.opsStatus){status=el.dataset.opsStatus;view='jobs';host.render();}});

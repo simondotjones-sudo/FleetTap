@@ -1,3 +1,4 @@
+import {backRoute} from './navigation.js';
 import {displayDate} from './display.js';
 import {esc} from './api.js';
 import {fleetModels,fleetModel,vehicleModelType} from './fleet-models.js';
@@ -42,12 +43,12 @@ export function schedulesView(c,part,value){
  const buses=c.state.vehicles.filter(v=>v.garage===c.garage);
  const isNew=part==='new',isModel=part==='model',selected=isNew||isModel?null:buses.find(v=>v.id===(part==='vehicle'?value:part));
  const model=isModel?fleetModel(value):null;
- if((isModel&&!model)||(!isNew&&!isModel&&!selected))return frame(c,'Schedule unavailable',go('schedules','Back to schedules'));
+ if((isModel&&!model)||(!isNew&&!isModel&&!selected))return frame(c,'Schedule unavailable',backRoute('schedules'));
  const status=selected?scheduleStatus(c.state,c.garage,selected.id):null,s=model?modelSchedule(c.state,c.garage,model.id):status?.schedule;
  const scope=selected?'bus':'model',basis=s?.basis||(s?.lastDate?'last':s?.firstDue?'first':'history');
  const inherited=selected&&status.source==='model',own=selected&&individualSchedule(c.state,c.garage,selected.id),parent=selected&&modelSchedule(c.state,c.garage,vehicleModelType(selected));
  const heading=isNew?'Create schedule':model?model.id+' model schedule':selected.id+' schedule';
- return frame(c,heading,`<div class="schedule-title-row">${go('schedules','← Schedules')}<p>PM3 inspection · ${model?'all '+esc(model.id)+' buses':selected?esc(selected.name||selected.id):'choose who, how often and when'}</p></div>
+ return frame(c,heading,`<div class="schedule-title-row">${backRoute('schedules')}<p>PM3 inspection · ${model?'all '+esc(model.id)+' buses':selected?esc(selected.name||selected.id):'choose who, how often and when'}</p></div>
  ${inherited?`<div class="notice">This bus follows the ${esc(status.modelType)} model schedule. Saving here creates an individual exception. ${go('schedules/model/'+status.modelType,'Edit model schedule')}</div>`:''}
  ${own&&parent?`<div class="notice">This bus has an individual schedule. <button type="button" class="tap-small" data-schedule-inherit="${esc(selected.id)}">Use ${esc(vehicleModelType(selected))} model schedule</button></div>`:''}
  <form class="card schedule-form" data-admin-form="schedule">

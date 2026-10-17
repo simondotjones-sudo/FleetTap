@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {actionsView,setupActions,scopedAction,actionEvidence,actionsBusy} from '../src/actions-flow.js';
+import {actionsView,setupActions,scopedAction,actionEvidence,actionsBusy,actionBack} from '../src/actions-flow.js';
 import {seed as baseSeed,submitAction} from '../src/model.js';
 
 const me={id:'assigned-worker',role:'mechanic',name:'Worker'};
@@ -23,10 +23,10 @@ test('action updates preserve draft after failure, block duplicate submits and a
  const notices=[],context=()=>({state,garage,page,me}),render=()=>{html=actionsView(context());};
  setupActions({context,render,notify:m=>notices.push(m),reload:async()=>{},mutation:async(action,values,{id})=>{calls++;assert.equal(action,'action');if(fail)throw Error('Connection lost');await new Promise(r=>release=r);submitAction(state,id,values.evidence);}});
  const click=async dataset=>{const el={dataset,hasAttribute:k=>Object.hasOwn(dataset,k.replace(/^data-/,'').replace(/-([a-z])/g,(_,x)=>x.toUpperCase()))};await listeners.click({target:{closest:()=>el}});};
- render();await click({actionKind:'handover'});assert.match(html,/Tap to talk/);
+ render();assert.equal(actionBack(),false);await click({actionKind:'handover'});assert.match(html,/Tap to talk/);
  await click({actionNext:''});assert.ok(notices.includes('Say or type a short update.'));
  listeners.input({target:{id:'action-note',value:'Awaiting a replacement ramp switch. Keep the bus held.'}});
- await click({actionNext:''});await click({actionSave:''});assert.match(html,/Connection lost/);assert.match(html,/replacement ramp switch/);assert.equal(actionsBusy(),false);
+ await click({actionNext:''});assert.equal(actionBack(),true);assert.match(html,/replacement ramp switch/);assert.equal(actionBack(),true);assert.match(html,/What would you like to record/);await click({actionKind:'handover'});assert.match(html,/replacement ramp switch/);await click({actionNext:''});assert.doesNotMatch(html,/data-action-back|← Back/);await click({actionSave:''});assert.match(html,/Connection lost/);assert.match(html,/replacement ramp switch/);assert.equal(actionsBusy(),false);
  fail=false;const pending=click({actionSave:''});assert.equal(actionsBusy(),true);await click({actionSave:''});assert.equal(calls,2);release();await pending;
  assert.equal(state.actions[0].status,'Awaiting review');assert.match(state.actions[0].evidence,/^Shift handover:\nAwaiting a replacement/);assert.equal(state.vehicles[1].status,'Held for review');assert.match(html,/Update sent/);
  page='actions';render();assert.doesNotMatch(html,/data-go="actions\/FT-A-DEMO"/);await click({actionFilter:'Awaiting review'});assert.match(html,/data-go="actions\/FT-A-DEMO"/);page='actions/FT-A-DEMO';render();assert.match(html,/Recorded update/);assert.doesNotMatch(html,/data-action-kind/);

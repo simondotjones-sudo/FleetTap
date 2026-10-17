@@ -1,6 +1,7 @@
 # FleetTap
 
 - Preserve the black/yellow branding, Gellix font, six large tiles and floating navigation. Keep status colours meaningful.
+- Use the floating navigation for Back. Do not add page-level Back buttons; retain Previous/Next for paginated lists. Workflow steps must preserve drafts when using the floating Back control.
 - Production site: fleettap.netlify.app. Repository: simondotjones-sudo/FleetTap. Do not alter PharmaTap or F2T-app.
 - Authentication uses server/security.mjs and server/runtime.mjs. No Netlify Identity. Never expose database URLs, password hashes, activation hashes or session hashes to the browser or logs.
 - Scope every data read and mutation by the authenticated user's organisation/garage. Never accept caller-supplied actor names or roles as authentication.

@@ -1,3 +1,4 @@
+import {backRoute} from './navigation.js';
 import {displayDate} from './display.js';
 import {esc} from './api.js';
 import {manager,reviewer} from './roles.js';
@@ -8,7 +9,7 @@ const listFor=c=>{const key=c.garage+':'+c.page;if(!lists.has(key))lists.set(key
 const go=(page,label)=>`<button type="button" class="tap-small" data-go="${esc(page)}">${esc(label)}</button>`;
 const badge=s=>`<span class="pill ${s==='Closed'?'good':s==='Open'||s==='Awaiting review'?'attention':'status-neutral'}">${esc(s||'Submitted')}</span>`;
 const date=value=>esc(displayDate(value));
-const frame=(title,content,back='manage')=>`<section class="admin-tools manager-records"><div class="tap-heading"><h1>${esc(title)}</h1></div>${content}<div class="toolbar">${go(back,'← Back')}</div></section>`;
+const frame=(title,content,back='manage')=>`<section class="admin-tools manager-records"><div class="tap-heading"><h1>${esc(title)}</h1></div>${content}<div class="toolbar">${backRoute(back)}</div></section>`;
 export function garageExport(c){
  if(!manager(c.me)||!c.garage)throw Error('Manager access required.');
  const result={schema:c.state.schema,garage:c.garage,exportedAt:new Date().toISOString()};

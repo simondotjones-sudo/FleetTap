@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {seed} from '../src/model.js';
 import {startInspection,saveAnswer,readings} from '../src/inspections.js';
-import {taskCopy,available,firstPending,resultStep,needsInstruction,draftFor,setupTablet,tabletView,isTabletSaving} from '../src/tablet.js';
+import {taskCopy,available,firstPending,resultStep,needsInstruction,draftFor,setupTablet,tabletView,tabletBack,isTabletSaving} from '../src/tablet.js';
 test('tablet requires reasons and readings before save; excludes blocked tasks',()=>{
  assert.equal(available.length,124);assert.ok(available.every(t=>!t.blocked));
  for(const t of available){assert.equal(resultStep(t,'Defect'),'reason');assert.equal(resultStep(t,'Not completed'),'reason');assert.equal(resultStep(t,'Not due'),'history');assert.equal(resultStep(t,'OK'),readings[t.id]?.length?'reading':'save');}
@@ -34,4 +34,20 @@ test('question hides instruction citations while retaining measurements and foll
  assert.ok(!taskCopy(ride).text.includes('issued'));assert.ok(taskCopy(ride).text.includes('233 - 241 mm'));assert.ok(ride.text.includes('S.I. 335'));
  assert.ok(taskCopy(steering).text.includes('Spray slit at bottom'));assert.ok(!taskCopy(steering).text.includes('Standard Instruction'));
  assert.ok(taskCopy(extinguisher).text.includes('5 years or more, replace'));assert.ok(taskCopy(extinguisher).text.includes('spring balance'));
+});
+
+
+test('floating Back preserves inspection drafts and returns from instructions and reading steps',()=>{
+ globalThis.document={addEventListener:()=>{}};globalThis.window={addEventListener:()=>{}};
+ const state=seed(),i=startInspection(state,'DEMO-271','demo-north','Mechanic'),n=1,t=i.templateSnapshot.tasks.filter(t=>!t.blocked)[n];t.requiresAcknowledgement=true;
+ let page=`inspection/${i.id}/item/${n}`;const context=()=>({state,garage:'demo-north',page});
+ setupTablet({context,render:()=>{},go:p=>page=p});
+ const d=draftFor(i,t);d.step='instruction';assert.equal(d.ack,false);assert.equal(tabletBack(),true);assert.equal(d.step,'question');assert.equal(d.ack,true);
+ d.step='reading';d.field=1;d.readings=['12','24'];d.notes='Keep my note';d.dirty=true;
+ assert.equal(tabletBack(),true);assert.equal(d.field,0);assert.deepEqual(d.readings,['12','24']);assert.equal(d.notes,'Keep my note');
+ assert.equal(tabletBack(),true);assert.equal(d.step,'question');assert.equal(d.dirty,true);
+ assert.equal(tabletBack(),true);assert.equal(page,`inspection/${i.id}/item/${n-1}`);
+ page=`inspection/${i.id}/sections`;assert.equal(tabletBack(),false);
+ page=`inspection/${i.id}/review`;assert.equal(tabletBack(),false);
+ page='home';assert.equal(tabletBack(),false);
 });

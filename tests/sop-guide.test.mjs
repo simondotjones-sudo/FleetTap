@@ -18,7 +18,7 @@ test('full SOP preserves all supplied clauses and history; links back to the sam
  const state=seed(),page='sops/to01/full?return='+encodeURIComponent('sops/to01/author/3');const html=sopView({state,garage:'demo-north',page});
  for(const [,text] of [...to01.sections,...to01.clauses])assert.ok(html.includes(esc(text)));
  for(const row of to01.history)for(const value of row)assert.ok(html.includes(esc(value)));
- assert.ok(html.includes(esc(to01.note)));assert.match(html,/data-go="sops\/to01\/author\/3"/);
+ assert.ok(html.includes(esc(to01.note)));assert.match(html,/data-back-route="sops\/to01\/author\/3"/);
  assert.equal(to01.clauses.length,10);
 });
 test('each authoring step exposes source reference and full SOP without implying approval',()=>{

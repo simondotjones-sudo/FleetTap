@@ -1,6 +1,17 @@
 import {manager} from './roles.js';
 import {esc} from './api.js';
 
+// Keep a deep-link fallback for the floating Back control without adding a page button.
+export const backRoute=page=>`<template data-back-route="${esc(page)}"></template>`;
+export function preparePageNavigation(workspace){
+ delete workspace.dataset.backRoute;
+ for(const marker of workspace.querySelectorAll('template[data-back-route]')){
+  workspace.dataset.backRoute ||= marker.dataset.backRoute;
+  const parent=marker.parentElement;marker.remove();
+  if(parent.matches('.tap-footer,.toolbar')&&!parent.children.length&&!parent.textContent.trim())parent.remove();
+ }
+}
+
 export function menuSections(user){
  const sections=[];
  if(manager(user))sections.push({title:'My Garage',items:[['garage-today','Garage Today'],['performance','Performance'],['manage','Manage FleetTap'],['fleet','Fleet']]});
