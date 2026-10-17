@@ -76,7 +76,23 @@
 .question-screen #tap-repair-form{margin:0 auto;display:grid;gap:16px}
 .question-screen #tap-repair-form label{margin:0;font-size:17px}
 .question-screen #tap-repair-form textarea{font-size:19px;min-height:88px;max-height:none}
-.question-screen #tap-repair-form input[type=checkbox]{min-height:auto;width:20px;flex:0 0 20px}
+.question-screen #tap-repair-form .repair-choices{padding:0;border:0;margin:0;min-width:0}
+.repair-choices legend{font-size:17px;font-weight:700;margin-bottom:10px}
+.repair-choices>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.repair-choices label{position:relative}
+.question-screen #tap-repair-form .repair-choices input{position:absolute;opacity:0;min-height:0;width:1px;height:1px;margin:0;padding:0}
+.repair-choices span{display:flex;align-items:center;justify-content:center;min-height:52px;padding:12px;border:1px solid #d4d4cc;border-radius:14px;background:white;cursor:pointer}
+.repair-choices input:checked+span{background:#fff8bf;border-color:#b3a000;font-weight:700}
+.repair-choices input:checked+span:after{content:'✓';margin-left:10px}
+.repair-choices input:focus-visible+span{outline:3px solid #2c8ddd;outline-offset:3px}
+#tap-repair-form [hidden]{display:none}
+.question-screen #tap-repair-form>.tap-primary{display:flex;align-items:center;justify-content:center;gap:10px;margin:0;width:100%}
+#tap-repair-form>.tap-primary svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2}
+#tap-repair-form .voice-button{min-height:44px;min-width:0;font-size:17px;padding:8px 14px;margin:8px 0}
+#tap-repair-form .voice-button svg{width:22px;height:22px}
+#tap-repair-form .voice-control .tap-caption{font-size:12px;text-align:left;margin-bottom:8px}
+.repair-photo-option summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:15px;text-decoration:underline;text-underline-offset:3px;color:#4b4b4b}
+.repair-photo-option .photo-options{gap:10px}.repair-photo-option .photo-options .tap-tile{min-height:100px}.repair-photo-option .photo-options strong{font-size:18px}
 .inspection-photo-list{width:100%;max-width:720px;margin:auto}.inspection-photo-list p{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:10px;overflow-wrap:anywhere}.inspection-photo-list img{width:64px;height:64px;object-fit:cover;border-radius:10px}.inspection-photo-list .tap-small{font-size:14px;padding:8px;min-height:44px}
 .repair-reported{border:1px solid #d9e5df;border-radius:14px;padding:16px;margin:16px 0;background:#f5f8f6;overflow-wrap:anywhere}.repair-reported p{font-size:16px;white-space:pre-wrap;line-height:1.5;margin:10px 0}.repair-reported small{color:#626262}
 @media(max-width:700px){.question-screen .tap-content{gap:18px}.question-screen .tap-task-text{font-size:21px}.question-screen .tap-grid.answers{gap:10px}.question-screen .tap-grid.answers .tap-tile{min-height:112px}.question-screen .tap-tile strong{font-size:19px}.question-screen .tap-footer{margin-top:8px}.question-screen .safety-notice{font-size:14px}.question-screen .tap-grid.answers:has(>:nth-child(5)) [data-result="Not due"]{grid-column:1/-1;min-height:64px;flex-direction:row}.question-screen .tap-grid.answers:has(>:nth-child(5)) [data-result="Fixed"]{grid-column:1}.question-screen .tap-grid.answers [data-result="OK"]{grid-column:2}}
