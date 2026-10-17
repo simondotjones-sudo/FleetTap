@@ -166,9 +166,19 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   const published=await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:controlValues},cookies.organisation_admin);assert.equal(published.status,200,JSON.stringify(published.data));
   let controls=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.content.sops;const control=controls.find(x=>x.title===controlValues.title);
   assert.equal((await write('start',{vehicle:'BUS-1'}, {},'mechanic')).status,400);
+  // The direct inspection action must enforce the same controls and commit job + inspection together.
+  assert.equal((await write('vehicle',{id:'DIRECT-1',model:'Synthetic direct inspection'})).status,200);
+  assert.equal((await write('schedule',{vehicle:'DIRECT-1',interval:4,unit:'weeks',firstDue:jobValues.date})).status,200);
+  const directJob=await write('job_create',{...jobValues,vehicle:'DIRECT-1',type:'Scheduled inspection',title:'Direct inspection'});assert.equal(directJob.status,200,JSON.stringify(directJob.data));const directId=directJob.data.result.id;
+  const blockedVersion=version,blocked=await write('job_checks',{}, {id:directId},'mechanic');assert.equal(blocked.status,400);assert.match(blocked.data.error,/Work blocked/);assert.equal(version,blockedVersion);
+  const blockedState=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state;assert.equal(blockedState.jobs.find(j=>j.id===directId).status,'Assigned');assert.equal(blockedState.inspections.some(i=>i.vehicle==='DIRECT-1'),false);
   const ack=await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes',userId:users.supervisor},{},'mechanic');assert.equal(ack.status,200,JSON.stringify(ack.data));assert.equal(ack.data.result.userId,users.mechanic);
   assert.equal((await call(workspace,null,cookies.supervisor,'?garage='+garage.id)).data.state.instructionAcks.length,0);
   assert.equal((await call(workspace,null,cookies.garage_manager,'?garage='+garage.id)).data.state.instructionAcks.length,1);
+  const direct=await write('job_checks',{}, {id:directId},'mechanic');assert.equal(direct.status,200,JSON.stringify(direct.data));const directInspectionId=direct.data.result.id;
+  assert.equal(direct.data.state.jobs.find(j=>j.id===directId).status,'In progress');assert.equal(direct.data.state.jobs.find(j=>j.id===directId).inspectionId,directInspectionId);
+  const staleDirect=await call(workspace,{action:'job_checks',garage:garage.id,version:version-1,id:directId,values:{}},cookies.mechanic);assert.equal(staleDirect.status,409);
+  const repeatedDirect=await write('job_checks',{}, {id:directId},'mechanic');assert.equal(repeatedDirect.status,200);assert.equal(repeatedDirect.data.result.id,directInspectionId);assert.equal(repeatedDirect.data.state.inspections.filter(i=>i.vehicle==='DIRECT-1').length,1);
   const ci=await write('start',{vehicle:'BUS-1'}, {},'mechanic');assert.equal(ci.status,200,JSON.stringify(ci.data));const controlInspectionId=ci.data.result.id;
   assert.equal((await write('answer',{result:'OK',readings:[20]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
   const first=await write('reading_check',{readings:[20],worker:'forged'},{id:controlInspectionId,item:'1-1'},'mechanic');assert.equal(first.status,200,JSON.stringify(first.data));assert.match(first.data.result.worker,/mechanic/);
@@ -176,6 +186,7 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('answer',{result:'OK',readings:[1],recheckConfirmed:true,recheckNote:'Checked calibration and retested'},{id:controlInspectionId,item:'1-1'},'mechanic')).status,200);
   cv=(await call(workspace,null,cookies.organisation_admin,'?garage='+garage.id)).data.contentVersion;
   assert.equal((await call(content,{kind:'sops',organisation_id:org.id,version:cv,values:{...controlValues,id:control.id,revision:'2'}},cookies.organisation_admin)).status,200);
+  assert.equal((await write('job_checks',{}, {id:directId},'mechanic')).status,400);
   assert.equal((await write('answer',{result:'OK',readings:[1]},{id:controlInspectionId,item:'1-1'},'mechanic')).status,400);
   assert.equal((await write('instruction_ack',{instructionId:control.id,version:control.version,understood:'yes'},{},'mechanic')).status,400);
   // Release decisions use complete server-side records, survive JSONB storage, and respect roles.

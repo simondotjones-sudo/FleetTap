@@ -44,6 +44,33 @@ test('scheduled work is deduplicated and cannot be signed off without inspection
  s.inspections[0].status='Completed';run(s,supervisor,'job_signoff',{note:'Checked'},j.id);
  assert.throws(()=>create(s,{type:'Scheduled inspection'}),/already has a job/);
 });
+test('one inspection action starts, links and resumes the same inspection without duplicate start events',()=>{
+ const s=state(),j=create(s,{type:'Scheduled inspection'});
+ assert.throws(()=>run(s,worker,'job_checks',{},j.id),/Start your day/);
+ run(s,worker,'shift_start');
+ const result=run(s,worker,'job_checks',{},j.id);
+ assert.equal(j.status,'In progress');assert.equal(j.inspectionId,result.id);assert.equal(j.startedAt,now.toISOString());assert.equal(s.inspections.length,1);
+ assert.deepEqual(j.audit.map(a=>a.event),['Created','Started','Inspection linked']);
+ const snapshot=structuredClone(s);assert.deepEqual(run(s,worker,'job_checks',{},j.id),result);assert.deepEqual(s,snapshot);
+ run(s,worker,'job_wait',{reason:'Awaiting parts',note:'Part ordered'},j.id);
+ assert.deepEqual(run(s,worker,'job_checks',{},j.id),result);assert.equal(j.status,'In progress');assert.equal(j.waitingReason,'');assert.equal(s.inspections.length,1);assert.equal(j.startedAt,now.toISOString());
+});
+test('direct inspection start rejects wrong owner, garage, future work, competing jobs and invalid states without changing records',()=>{
+ const s=state(),j=create(s,{type:'Scheduled inspection'});run(s,worker,'shift_start');
+ const rejected=(fn,pattern)=>{const before=structuredClone(s);assert.throws(fn,pattern);assert.deepEqual(s,before);};
+ rejected(()=>run(s,other,'job_checks',{},j.id),/not assigned/);
+ rejected(()=>command(s,'foreign',worker,'job_checks',{},j.id,null,now),/unavailable/);
+ j.date='2026-10-17';rejected(()=>run(s,worker,'job_checks',{},j.id),/future day/);j.date='2026-10-16';
+ const repair=create(s);run(s,worker,'job_start',{},repair.id);rejected(()=>run(s,worker,'job_checks',{},j.id),/Pause your current/);
+ rejected(()=>run(s,worker,'job_checks',{},repair.id),/cannot be started/);run(s,worker,'job_wait',{reason:'Paused',note:'Paused for inspection'},repair.id);
+ for(const status of ['Awaiting sign-off','Completed','Cancelled']){j.status=status;rejected(()=>run(s,worker,'job_checks',{},j.id),/cannot be started/);}
+ j.status='Assigned';s.vehicles=[];rejected(()=>run(s,worker,'job_checks',{},j.id),/Choose a vehicle/);
+});
+test('direct inspection start reuses an existing bus inspection',()=>{
+ const s=state(),j=create(s,{type:'Scheduled inspection'});run(s,worker,'shift_start');
+ const existing={id:'existing',garage:g,vehicle:j.vehicle,templateId:'pm3',status:'In progress',answers:{},craftworker:'Mechanic'};s.inspections.push(existing);
+ assert.equal(run(s,worker,'job_checks',{},j.id).id,existing.id);assert.equal(s.inspections.length,1);assert.equal(j.inspectionId,existing.id);
+});
 test('invalid dates, foreign buses/jobs, future starts and unclosed linked faults are rejected',()=>{
  const s=state();assert.throws(()=>create(s,{date:'2026-02-31'}),/valid job date/);assert.throws(()=>create(s,{vehicle:'FOREIGN'}),/this garage/);
  const j=create(s,{date:'2026-10-17'});run(s,worker,'shift_start');assert.throws(()=>run(s,worker,'job_start',{},j.id),/future day/);

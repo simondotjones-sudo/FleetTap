@@ -25,10 +25,21 @@ export function myDayWork(c){
 }
 
 function personalJob(c,j,instructions=[],record=false){
- const bus=c.state.vehicles.find(b=>b.garage===c.garage&&b.id===j.vehicle),blocked=instructions.some(x=>bus&&applies(x,bus));
+ const bus=c.state.vehicles.find(b=>b.garage===c.garage&&b.id===j.vehicle),required=instructions.find(x=>bus&&applies(x,bus));
+ const active=dayShift(c.state,c.garage,c.me.id),inspection=c.state.inspections.find(i=>i.id===j.inspectionId&&i.garage===c.garage&&i.vehicle===j.vehicle&&!i.deletedAt);
+ const submitted=inspection&&['Awaiting review','Completed'].includes(inspection.status),returned=j.status==='Assigned'&&j.audit?.at(-1)?.event==='Returned for work';
  const meta=[record?displayDate(j.date):j.date<today()?'Carried over · '+displayDate(j.date):'',j.time||'',j.priority&&j.priority!=='Normal'?j.priority:''].filter(Boolean);
- const status=j.status==='Waiting'?j.waitingReason||'Waiting':j.status;
- return `<button type="button" class="my-day-card my-day-job" data-go="my-jobs/${esc(j.id)}"><span class="my-day-card-top"><strong>${esc(j.vehicle)}</strong><span class="ops-badge ${j.status==='In progress'?'working':j.status==='Waiting'?'waiting':j.status==='Completed'?'done':''}">${esc(status)}</span></span><span class="my-day-title">${esc(j.title)}</span>${meta.length?`<span class="my-day-meta">${esc(meta.join(' · '))}</span>`:''}<span class="my-day-next ${blocked?'my-day-blocked':''}">${record?'View job':blocked?'Read required instructions first':j.status==='In progress'?'Continue job':'Open job'} <span aria-hidden="true">→</span></span></button>`;
+ const status=j.status==='Waiting'?j.waitingReason||'Waiting':returned?'Returned for work':j.status;
+ const badge=record||j.status!=='Assigned'||returned?`<span class="ops-badge ${j.status==='In progress'?'working':j.status==='Waiting'||returned?'waiting':j.status==='Completed'?'done':''}">${esc(status)}</span>`:'';
+ const content=`<span class="my-day-card-top"><strong>${esc(j.vehicle)}</strong>${badge}</span><span class="my-day-title">${esc(j.title)}</span>${meta.length?`<span class="my-day-meta">${esc(meta.join(' · '))}</span>`:''}`;
+ let target=`data-go="my-jobs/${esc(j.id)}"`,label=record||!active?'View job':j.status==='In progress'?'Continue job':'Open job',direct=false;
+ if(!record&&active){
+  if(required){target=`data-go="required-instructions/${esc(required.id)}?return=my-jobs"`;label=overdue(required)?'View required instruction':'Read & acknowledge';direct=true;}
+  else if(j.type==='Scheduled inspection'&&!submitted){target=`data-operation="job_checks" data-id="${esc(j.id)}"`;label=inspection||j.status==='In progress'?'Continue inspection':'Start inspection';direct=true;}
+  else if(submitted&&j.status==='In progress')label='Finish job';
+ }
+ if(direct)return `<article class="my-day-card my-day-job-panel">${content}<div class="my-day-job-actions"><button type="button" ${target}>${label} <span aria-hidden="true">→</span></button><button type="button" class="my-day-job-details" data-go="my-jobs/${esc(j.id)}">Job details</button></div></article>`;
+ return `<button type="button" class="my-day-card my-day-job" ${target}>${content}<span class="my-day-next">${label} <span aria-hidden="true">→</span></span></button>`;
 }
 
 export function myDayView(c){
@@ -39,7 +50,7 @@ export function myDayView(c){
  const inspectionCards=inspections.map(i=>`<button type="button" class="my-day-card my-day-job" data-go="inspection/${esc(i.id)}"><span class="my-day-card-top"><strong>${esc(i.vehicle)}</strong><span class="ops-badge working">In progress</span></span><span class="my-day-title">Bus inspection</span><span class="my-day-next">Continue inspection <span aria-hidden="true">→</span></span></button>`).join('');
  const actionCards=actions.map(a=>`<button type="button" class="my-day-card my-day-action" data-go="actions/${esc(a.id)}">${icon('action')}<span>${a.vehicle?`<span class="my-day-meta">${esc(a.vehicle)}</span>`:''}<strong>${esc(a.title)}</strong><span class="my-day-next">${a.returnNotes?'Returned · update action':'Update action'} <span aria-hidden="true">→</span></span></span></button>`).join('');
  const noWork=!jobs.length&&!actions.length&&!inspections.length&&!instructions.length;
- return `<section class="ops-page my-day"><h1>My day</h1><button type="button" class="my-day-toggle ${active?'secondary':''}" data-operation="${active?'end_day':'shift_start'}">${active?'End day':'Start day'}</button>${section('Before you start',before)}${section('Assigned jobs',jobCards)}${section('Continue inspections',inspectionCards)}${section('Assigned actions',actionCards)}${noWork?'<p class="my-day-empty">Nothing assigned right now. New work will appear here.</p>':''}</section>`;
+ return `<section class="ops-page my-day">${active?'<header class="my-day-heading"><h1>My day</h1><button type="button" class="secondary my-day-end" data-operation="end_day">End day</button></header>':'<h1>My day</h1><button type="button" class="my-day-toggle" data-operation="shift_start">Start day</button>'}${section('Before you start',before)}${section('My jobs',jobCards)}${section('Continue inspections',inspectionCards)}${section('Assigned actions',actionCards)}${noWork?'<p class="my-day-empty">Nothing assigned right now. New work will appear here.</p>':''}</section>`;
 }
 
 export function myJobRecordsView(c){

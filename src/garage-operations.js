@@ -76,9 +76,15 @@ export function operationsCommand(s,g,u,action,v={},id='',assignee=null,now=new 
   j.status='In progress';j.startedAt??=at;j.waitingReason='';audit(j,'Started');return j;
  }
  if(action==='job_checks'){
-  requireThat(j.type==='Scheduled inspection'&&j.status==='In progress','Start the inspection job first.');
-  let inspection=s.inspections.find(i=>i.id===j.inspectionId&&i.garage===g&&!i.deletedAt);
-  if(!inspection){inspection=startInspection(s,j.vehicle,g,actor);j.inspectionId=inspection.id;audit(j,'Inspection linked',{inspectionId:inspection.id});}return {id:inspection.id};
+  requireThat(j.type==='Scheduled inspection'&&['Assigned','Waiting','In progress'].includes(j.status),'This inspection job cannot be started.');
+  requireThat(j.date<=date,'This job is planned for a future day.');
+  requireThat(!garageJobs(s,g).some(x=>x.id!==id&&x.assigneeId===u.id&&x.status==='In progress'),'Pause your current job before starting another.');
+  // Start/resume and link the inspection in the same versioned workspace write.
+  // Create the inspection before changing the job so a failed start leaves it untouched.
+  const inspection=s.inspections.find(i=>i.id===j.inspectionId&&i.garage===g&&i.vehicle===j.vehicle&&!i.deletedAt)||startInspection(s,j.vehicle,g,actor);
+  if(j.status!=='In progress'){j.status='In progress';j.startedAt??=at;j.waitingReason='';audit(j,'Started');}
+  if(j.inspectionId!==inspection.id){j.inspectionId=inspection.id;audit(j,'Inspection linked',{inspectionId:inspection.id});}
+  return {id:inspection.id};
  }
  if(action==='job_wait'){
   requireThat(j.status==='In progress','Only work in progress can be paused.');

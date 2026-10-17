@@ -15,20 +15,20 @@ test('my day shows only actionable personal work; pending review, future and com
  const c=fixture();c.state.jobs=[job('current'),job('progress',{status:'In progress'}),job('waiting',{status:'Waiting'}),job('future',{date:'2099-01-01'}),job('review',{status:'Awaiting sign-off'}),job('completed',{status:'Completed'}),job('cancelled',{status:'Cancelled'}),job('other-person',{assigneeId:'someone'}),job('other-garage',{garage:'south'})];
  c.state.actions=[action('my-action'),action('closed-action',{status:'Closed'}),action('review-action',{status:'Awaiting review'}),action('deleted-action',{deletedAt:'now'}),action('foreign-action',{garage:'south'}),action('namesake-action',{assignedTo:'someone',owner:me.name})];
  const work=myDayWork(c);assert.deepEqual(work.jobs.map(j=>j.id),['progress','current','waiting']);assert.deepEqual(work.actions.map(a=>a.id),['my-action']);
- const html=myDayView(c);assert.doesNotMatch(html,/future|completed|cancelled|closed-action|review-action|other-person|namesake-action|Time flexible|Normal|Demo|Refresh|ops-day/);assert.ok(html.indexOf('Assigned jobs')<html.indexOf('Assigned actions'));assert.doesNotMatch(html,/My bus inspections|Completed jobs/);
+ const html=myDayView(c);assert.doesNotMatch(html,/future|completed|cancelled|closed-action|review-action|other-person|namesake-action|Time flexible|Normal|Demo|Refresh|ops-day/);assert.ok(html.indexOf('My jobs')<html.indexOf('Assigned actions'));assert.doesNotMatch(html,/My bus inspections|Completed jobs/);
  const records=myJobRecordsView(c);for(const id of ['current','future','review','completed','cancelled'])assert.ok(records.includes('my-jobs/'+id));assert.doesNotMatch(records,/other-person|other-garage/);
  assert.equal(operationsView({...c,page:'my-jobs/records'}),records);
  assert.match(menuView(me,'my-jobs/records'),/data-go="my-jobs\/records" aria-current="page"/);assert.doesNotMatch(menuView(me,'my-jobs/records'),/data-go="my-jobs" aria-current="page"/);
 });
 
 test('required instructions precede jobs, respect bus scope and only disappear after current-version acknowledgement',()=>{
- const c=fixture();c.state.jobs=[job('current')];c.content.sops=[control('read-me'),control('other-bus',{targetFleets:['BUS-2']}),control('foreign',{targetFleets:['BUS-3']}),control('draft',{status:'Draft'}),control('optional',{required:false}),control('fleet-wide',{target:'all'})];
+ const c=fixture();c.state.shifts=[{garage,userId:me.id,date}];c.state.jobs=[job('current',{type:'Scheduled inspection'})];c.content.sops=[control('read-me'),control('other-bus',{targetFleets:['BUS-2']}),control('foreign',{targetFleets:['BUS-3']}),control('draft',{status:'Draft'}),control('optional',{required:false}),control('fleet-wide',{target:'all'})];
  assert.deepEqual(myDayWork(c).instructions.map(x=>x.id),['read-me','fleet-wide']);
- let html=myDayView(c);assert.ok(html.indexOf('Before you start')<html.indexOf('Assigned jobs'));assert.match(html,/required-instructions\/read-me\?return=my-jobs/);assert.match(html,/Read required instructions first/);
+ let html=myDayView(c);assert.ok(html.indexOf('Before you start')<html.indexOf('My jobs'));assert.match(html,/required-instructions\/read-me\?return=my-jobs/);assert.match(html,/Read & acknowledge/);assert.doesNotMatch(html,/data-operation="job_checks"/);
  c.state.instructionAcks.push({garage,userId:me.id,instructionId:'read-me',version:1},{garage,userId:'someone',instructionId:'read-me',version:2});assert.ok(myDayWork(c).instructions.some(x=>x.id==='read-me'));
  assert.throws(()=>requireControls(c.state,garage,me,c.content,'BUS-1'),/Work blocked/);
  for(const instructionId of ['read-me','fleet-wide'])acknowledgeControl(c.state,garage,me,c.content,{instructionId,version:2,understood:'yes'});
- assert.deepEqual(myDayWork(c).instructions,[]);requireControls(c.state,garage,me,c.content,'BUS-1');html=myDayView(c);assert.doesNotMatch(html,/Before you start|read-me|Read required instructions first/);assert.match(html,/Open job/);
+ assert.deepEqual(myDayWork(c).instructions,[]);requireControls(c.state,garage,me,c.content,'BUS-1');html=myDayView(c);assert.doesNotMatch(html,/Before you start|read-me|Read & acknowledge/);assert.match(html,/data-operation="job_checks" data-id="current">Start inspection/);
  c.content.sops[0].reviewDate='2020-01-01';html=myDayView(c);assert.match(html,/Review overdue · contact your manager/);assert.throws(()=>requireControls(c.state,garage,me,c.content,'BUS-1'),/Work blocked/);
 });
 
@@ -41,8 +41,21 @@ test('instructions apply to actions and ongoing inspections without duplicating 
 });
 
 test('day toggle stays compact and empty lists do not produce empty panels',()=>{
- const c=fixture();let html=myDayView(c);assert.match(html,/data-operation="shift_start">Start day/);assert.match(html,/Nothing assigned right now/);assert.doesNotMatch(html,/Assigned jobs|Assigned actions|Before you start|Completed jobs|Required instructions|Refresh|Alex/);
+ const c=fixture();let html=myDayView(c);assert.match(html,/data-operation="shift_start">Start day/);assert.match(html,/Nothing assigned right now/);assert.doesNotMatch(html,/My jobs|Assigned actions|Before you start|Completed jobs|Required instructions|Refresh|Alex/);
  c.state.shifts=[{garage,userId:me.id,date,startedAt:new Date().toISOString(),endedAt:null}];html=myDayView(c);assert.match(html,/data-operation="end_day">End day/);assert.doesNotMatch(html,/Day started|\d{4}-\d{2}-\d{2}|Start day/);
  c.state.briefings=[{garage,date,note:'Wear <eye protection>'}];html=myDayView(c);assert.match(html,/Wear &lt;eye protection&gt;/);assert.match(html,/Garage briefing/);
  c.state.jobs=[job('unsafe',{title:'<script>bad</script>',vehicle:'<BUS>'})];c.state.actions=[action('action',{title:'<img onerror=bad>'})];html=myDayView(c);assert.match(html,/&lt;script&gt;/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<script>|<img/);
+});
+
+test('inspection cards offer the next action, keep details and records accessible, and preserve meaningful states',()=>{
+ const c=fixture(),j=job('inspect',{type:'Scheduled inspection'});c.state.jobs=[j];
+ let html=myDayView(c);assert.match(html,/View job/);assert.doesNotMatch(html,/job_checks|>Assigned<|Start inspection/);
+ c.state.shifts=[{garage,userId:me.id,date}];html=myDayView(c);
+ assert.match(html,/data-operation="job_checks" data-id="inspect">Start inspection/);assert.match(html,/data-go="my-jobs\/inspect">Job details/);assert.match(html,/my-day-heading/);assert.doesNotMatch(html,/my-day-toggle|>Assigned</);
+ assert.doesNotMatch(myJobRecordsView(c),/job_checks/);assert.match(myJobRecordsView(c),/>Assigned</);
+ c.page='my-jobs/inspect';assert.match(operationsView(c),/data-operation="job_checks"[^>]*>Start inspection/);assert.doesNotMatch(operationsView(c),/data-operation="job_start"/);
+ j.status='In progress';j.inspectionId='i';c.state.inspections=[{id:'i',garage,vehicle:j.vehicle,status:'In progress'}];html=myDayView(c);assert.match(html,/Continue inspection/);assert.match(html,/>In progress</);
+ j.status='Waiting';j.waitingReason='Awaiting parts';html=myDayView(c);assert.match(html,/Continue inspection/);assert.match(html,/Awaiting parts/);
+ j.status='Assigned';j.audit=[{event:'Returned for work'}];assert.match(myDayView(c),/Returned for work/);
+ j.status='In progress';c.state.inspections[0].status='Awaiting review';html=myDayView(c);assert.match(html,/Finish job/);assert.doesNotMatch(html,/job_checks|Continue inspection/);assert.match(operationsView(c),/Submit for sign-off/);assert.doesNotMatch(operationsView(c),/job_checks/);
 });
