@@ -1,5 +1,11 @@
 # FleetTap
 
+## Content management tidy-up — 1.17.10.26.42
+
+Garage Managers see four equal Manage FleetTap tiles. Organisation Admins have an SOPs & SIs area for creating documents, published documents and reference guides, drafts, and team acknowledgements. Checklist creation, the checklist library and the PM3 inspection template have their own area. Operational checks and reviews remain in their existing work pages. Authoring permissions, draft retention and publication approval are unchanged.
+
+Validation: 116 regression tests and the production build passed. Browser checks covered 320px, 390px, 820px and 1440px layouts, role access, separate content navigation, draft recovery and PM3 template access.
+
 ## Workflow simplification — 1.16.10.26.27
 
 Implemented the agreed page-by-page usability review while retaining Gellix, the black/yellow identity, six home tiles, floating navigation and meaningful status colours.
