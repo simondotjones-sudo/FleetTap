@@ -27,7 +27,7 @@ import {photoGallery,previewPhotos,setupPhotoPicker} from './photos.js';
 import {tabletView,setupTablet,tabletBack,isTabletSaving} from './tablet.js';
 import {api} from './api.js';
 import {adminView,manager,syncUserScope,setupAccess} from './admin-ui.js';
-import {checksFlowView,setupChecks,isChecksRoute} from './checks-flow.js';
+import {checksFlowView,setupChecks,isChecksRoute,checksBusy} from './checks-flow.js';
 import {readings} from './inspections.js';
 import {scoped} from './model.js';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -116,8 +116,8 @@ function navigateBack(){
  if(current().startsWith('inspection/')){const i=state.inspections.find(i=>i.id===current().split('/')[1]&&i.garage===garage);returnTo(i?'checks/'+encodeURIComponent(i.vehicle):'checks');return;}
  returnTo('home');
 }
-document.addEventListener('click',e=>{if(profile&&!e.target.closest('.profile-panel,#profile-trigger'))setProfile(false);const el=e.target.closest('button,[data-dismiss]');if(!el||isTabletSaving()||reportBusy()||actionsBusy()||fleetBusy()||adminBusy()||contentBusy()||sopUploadBusy())return;if(busReleaseBusy()||roadmapBusy()||operationsBusy()||performanceBusy())return;if(el.dataset.go){go(el.dataset.go);return;}if(el.dataset.vehicle){go('vehicle/'+el.dataset.vehicle);return;}if(el.dataset.mode){mode=el.dataset.mode;render();return;}if(el.id==='profile-trigger'){if(overlay){overlay='';renderNavigation();}setProfile(!profile);return;}if(el.hasAttribute('data-dismiss')){overlay='';renderNavigation();return;}if(el.dataset.nav){const n=el.dataset.nav;if(n==='home')go('home');else if(n==='back'){navigateBack();}else{overlay=overlay===n?'':n;profile=false;renderNavigation();}return;}});
-document.addEventListener('change',async e=>{if(e.target.name==='photos')previewPhotos(e.target);if(e.target.id==='garage-select'){if(busReleaseBusy()||performanceBusy()||operationsBusy()||reportBusy()||actionsBusy()||fleetBusy()||adminBusy()||contentBusy()||sopUploadBusy()){e.target.value=garage;return;}try{await reloadWorkspace(e.target.value);go('home');}catch(err){notify(err.message);}}if(['user-role','user-org'].includes(e.target.id))syncUserScope(adminData,me);});
+document.addEventListener('click',e=>{if(profile&&!e.target.closest('.profile-panel,#profile-trigger'))setProfile(false);const el=e.target.closest('button,[data-dismiss]');if(!el||isTabletSaving()||reportBusy()||actionsBusy()||fleetBusy()||adminBusy()||contentBusy()||sopUploadBusy())return;if(checksBusy()||busReleaseBusy()||roadmapBusy()||operationsBusy()||performanceBusy())return;if(el.dataset.go){go(el.dataset.go);return;}if(el.dataset.vehicle){go('vehicle/'+el.dataset.vehicle);return;}if(el.dataset.mode){mode=el.dataset.mode;render();return;}if(el.id==='profile-trigger'){if(overlay){overlay='';renderNavigation();}setProfile(!profile);return;}if(el.hasAttribute('data-dismiss')){overlay='';renderNavigation();return;}if(el.dataset.nav){const n=el.dataset.nav;if(n==='home')go('home');else if(n==='back'){navigateBack();}else{overlay=overlay===n?'':n;profile=false;renderNavigation();}return;}});
+document.addEventListener('change',async e=>{if(e.target.name==='photos')previewPhotos(e.target);if(e.target.id==='garage-select'){if(checksBusy()||busReleaseBusy()||performanceBusy()||operationsBusy()||reportBusy()||actionsBusy()||fleetBusy()||adminBusy()||contentBusy()||sopUploadBusy()){e.target.value=garage;return;}try{await reloadWorkspace(e.target.value);go('home');}catch(err){notify(err.message);}}if(['user-role','user-org'].includes(e.target.id))syncUserScope(adminData,me);});
 document.addEventListener('input',e=>{if(e.target.id==='sop-search'){const q=e.target.value.toLowerCase();document.querySelectorAll('[data-sop-search]').forEach(b=>b.hidden=!b.dataset.sopSearch.includes(q));}if(e.target.id==='fleet-search'){document.querySelectorAll('[data-search]').forEach(el=>el.hidden=!el.dataset.search.includes(e.target.value.toLowerCase()));const hint=$('#search-empty');if(hint)hint.hidden=!!document.querySelector('[data-search]:not([hidden])');}});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(profile){setProfile(false,true);return;}if(overlay){overlay='';renderNavigation();}});
 document.addEventListener('submit',async e=>{
@@ -155,7 +155,7 @@ setupAccess({refresh:async()=>{await reloadWorkspace();adminData=await api('admi
 setupReviews({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
 setupContent({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
 setupPhotoPicker();
-setupChecks({context:tabletContext,render,go});
+setupChecks({context:tabletContext,render,go,reload:reloadWorkspace,notify});
 setupAdminTools({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify,version:()=>version});
 setupFleet({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
 setupActions({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
