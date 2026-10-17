@@ -1,4 +1,5 @@
 import {criticalCheckBlocked} from './critical-safety.js';
+import {requireCurrentSequence} from './section-sequencing.js';
 import {tasksFor,isPM3,templateFor} from './templates.js';
 import {validDate,today} from './scheduling.js';
 import {modelTypeForSave,vehicleModelType} from './fleet-models.js';
@@ -36,7 +37,7 @@ export function manageInspection(state,garage,id,values,actor){
   if(state.inspections.some(x=>x!==i&&x.garage===garage&&x.vehicle===i.vehicle&&isPM3(x)&&!x.deletedAt&&x.status==='In progress'))throw Error('Finish the other open inspection for this bus first.');
   audit(i,'Reopen for amendment',actor,why,{status:i.status,answers:structuredClone(i.answers),notes:i.notes,submitted:i.submitted,completedDate:i.completedDate,completedAt:i.completedAt});
   // Legacy inspections always retain their original source mapping, never today's edited template.
-  i.templateSnapshot??=structuredClone(templateFor({}));i.templateId??='pm3';i.status='In progress';i.amendment={actor,reason:why,at:new Date().toISOString()};delete i.completedDate;delete i.completedAt;return {id};
+  if(!i.templateSnapshot){i.templateSnapshot=structuredClone(templateFor({}));delete i.templateSnapshot.sectionRules;}i.templateId??='pm3';i.status='In progress';i.amendment={actor,reason:why,at:new Date().toISOString()};delete i.completedDate;delete i.completedAt;return {id};
  }
  if(op==='notes'){
   audit(i,'Amend notes',actor,why,{notes:i.notes||''});i.notes=String(values.notes||'').trim().slice(0,4000);return {id};
@@ -46,6 +47,7 @@ export function manageInspection(state,garage,id,values,actor){
   if(i.status!=='Awaiting review')throw Error('Submit the inspection for review first.');
   if(tasksFor(i).some(t=>t.blocked||!i.answers[t.id]||i.answers[t.id].result==='Not completed'))throw Error('Resolve all blocked and unfinished tasks before recording completion.');
   if(criticalCheckBlocked(state,i))throw Error('Repair and verify all Critical Safety Faults before signing off this inspection.');
+  requireCurrentSequence(state,i);
   if(!validDate(values.date)||values.date>today()||values.date<i.created.slice(0,10))throw Error('Choose a completion date between the inspection start and today.');
   audit(i,'Complete review',actor,why,{status:i.status});i.status='Completed';i.completedDate=values.date;i.completedAt=new Date().toISOString();i.completedBy=actor;return {id};
  }

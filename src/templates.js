@@ -1,8 +1,9 @@
 import {criticalTask} from './critical-safety.js';
 import {pm3} from './pm3.js';
+import {sectionRulesFor,validateSectionRules} from './section-sequencing.js';
 
 export const PM3_ID='pm3';
-export function templateFor(state){const t=state.inspectionTemplate||{id:PM3_ID,version:1,title:'SG271+ · PM3',tasks:structuredClone(pm3),sourceId:null};return {...t,tasks:(t.tasks||pm3).map(task=>({...task,criticalSafety:criticalTask(task),visualDefectPhotoRequired:task.visualDefectPhotoRequired===true}))};}
+export function templateFor(state){const t=state.inspectionTemplate||{id:PM3_ID,version:1,title:'SG271+ · PM3',tasks:structuredClone(pm3),sourceId:null};return {...t,sequencingPolicyVersion:1,sectionRules:sectionRulesFor(t,true),tasks:(t.tasks||pm3).map(task=>({...task,criticalSafety:criticalTask(task),visualDefectPhotoRequired:task.visualDefectPhotoRequired===true}))};}
 export const tasksFor=inspection=>inspection?.templateSnapshot?.tasks||pm3;
 export const fieldsFor=task=>task?.fields;
 export const isPM3=i=>i?.templateId===PM3_ID||i?.template?.startsWith('TO-PMS 035');
@@ -15,11 +16,18 @@ function record(template,actor,action,previous){
 export function editTemplate(state,values,actor){
  const current=templateFor(state),t=structuredClone(current),op=values.operation;
  const sections=[...new Set(t.tasks.map(x=>x.section))];
- if(op==='section'){
+ if(op==='section_rule'){
+  const rule=t.sectionRules.find(r=>r.id===values.sectionId);if(!rule)throw Error('Choose an existing section.');
+  const previous=structuredClone(rule);
+  if(!Array.isArray(values.prerequisites))throw Error('Choose valid prerequisite sections.');
+  Object.assign(rule,{category:values.category,mode:values.mode,requirement:values.requirement,prerequisites:values.mode==='selected'?values.prerequisites:[]});
+  validateSectionRules(t.sectionRules);record(t,actor,'Update section category and sequence',previous);
+ }else if(op==='section'){
   const from=text(values.section,120),name=text(values.name,120);
   if(!sections.includes(from)||!name)throw Error('Choose a section and enter its name.');
   if(name!==from&&sections.includes(name))throw Error('A section with that name already exists.');
   t.tasks.filter(x=>x.section===from).forEach(x=>x.section=name);
+  t.sectionRules.find(r=>r.name===from).name=name;
   record(t,actor,'Rename section',{from,to:name});
  }else if(op==='move_section'){
   const n=sections.indexOf(values.section),to=n+Number(values.direction);
@@ -27,6 +35,7 @@ export function editTemplate(state,values,actor){
   [sections[n],sections[to]]=[sections[to],sections[n]];
   t.tasks.sort((a,b)=>sections.indexOf(a.section)-sections.indexOf(b.section));record(t,actor,'Reorder section',{section:values.section,direction:values.direction});
  }else if(op==='delete_section'){
+  if(t.tasks.some(q=>q.section===values.section&&q.id==='17-1'))throw Error('Keep the final Test Drive section. Configure its prerequisites in Section options.');
   if(!sections.includes(values.section))throw Error('Choose a section.');
   if(t.tasks.some(x=>x.section===values.section&&x.blocked))throw Error('The blocked regeneration item must remain until Technical Office approval.');
   if(sections.length<=1)throw Error('Keep at least one section.');
@@ -34,6 +43,7 @@ export function editTemplate(state,values,actor){
  }else{
   const n=t.tasks.findIndex(x=>x.id===values.id),old=t.tasks[n];
   if(op==='delete_question'){
+   if(old?.id==='17-1')throw Error('Keep the final Test Drive question. Configure its prerequisites in Section options.');
    if(!old)throw Error('Question unavailable.');if(old.blocked)throw Error('The blocked regeneration item cannot be removed.');
    if(t.tasks.length<=1)throw Error('Keep at least one question.');t.tasks.splice(n,1);record(t,actor,'Delete question',old);
   }else if(op==='move_question'){
@@ -42,6 +52,7 @@ export function editTemplate(state,values,actor){
   }else if(op==='question'){
    if(values.id&&!old)throw Error('Question unavailable.');
    const section=text(values.section,120),question=text(values.question),instruction=text(values.instruction,12000);
+   if(old?.id==='17-1'&&section!==old.section)throw Error('Use Rename section to rename Test Drive and keep its sequencing rule.');
    if(!section||!question||!instruction)throw Error('Enter a section, question and full instruction.');
    const page=Number(values.page);if(!Number.isInteger(page)||page<1||page>1000)throw Error('Enter a source page between 1 and 1000.');
    if(old?.blocked)throw Error('This source conflict is locked pending Technical Office approval.');
@@ -56,5 +67,8 @@ export function editTemplate(state,values,actor){
    record(t,actor,old?'Edit question':'Add question',old||null);
   }else throw Error('Unknown template change.');
  }
+ const removed=t.sectionRules.filter(r=>!t.tasks.some(q=>q.section===r.name));
+ if(removed.some(r=>t.sectionRules.some(other=>other.mode==='selected'&&other.prerequisites.includes(r.id))))throw Error('This section is a prerequisite. Update dependent section rules before removing it.');
+ t.sectionRules=sectionRulesFor(t,true);validateSectionRules(t.sectionRules);
  state.inspectionTemplate=t;return {version:t.version};
 }

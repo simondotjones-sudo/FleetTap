@@ -15,9 +15,9 @@ test('section completion requires saved checks without blocked work, unfinished 
  const {state,run}=setup(),task=run.templateSnapshot.tasks.find(t=>t.id==='b1');
  assert.equal(sectionProgress(run,'Second').complete,false);
  run.answers.b1={result:'OK'};assert.equal(sectionProgress(run,'Second').complete,true);
- const html=tabletView({state,garage,page:`inspection/${run.id}/sections`});assert.doesNotMatch(html,/to finish/);assert.match(html,/data-section-complete="true"/);assert.match(html,/Checks completed/);
+ const html=tabletView({state,garage,page:`inspection/${run.id}/sections`});assert.doesNotMatch(html,/to finish/);assert.match(html,/data-section-complete="true"/);assert.match(html,/Completed and passed/);
  run.answers.b1.result='Not completed';assert.equal(sectionProgress(run,'Second').complete,false);
- run.answers.b1.result='Defect';assert.equal(sectionProgress(run,'Second').complete,true); // Completion is recording the inspection, not closing faults.
+ run.answers.b1.result='Defect';assert.equal(sectionProgress(run,'Second').complete,true);assert.equal(sectionProgress(run,'Second',state).passed,false); // Recorded faults do not earn a green pass.
  run.rechecks={b1:{readings:['.4']}};assert.equal(sectionProgress(run,'Second').complete,false);
  run.rechecks.b1.resolvedAt='2026-10-17';assert.equal(sectionProgress(run,'Second').complete,true);
  const d=draftFor(run,task);d.dirty=true;assert.equal(sectionProgress(run,'Second').complete,false);d.dirty=false;

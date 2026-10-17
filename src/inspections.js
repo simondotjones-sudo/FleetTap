@@ -1,4 +1,5 @@
 import {criticalTask} from './critical-safety.js';
+import {verifiedInspectionFault,inspectionSequence,requireSectionReady,requireCurrentSequence} from './section-sequencing.js';
 import {pm3} from './pm3.js';
 import {modelTypeForSave} from './fleet-models.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
@@ -38,6 +39,7 @@ export function outOfRange(task,answer){return taskReadings(task).some((r,n)=>{c
 export function recordRecheck(state,id,garage,taskId,readings,worker){
  const i=inspectionFor(state,id,garage),task=tasksFor(i).find(t=>t.id===taskId);
  if(i.status!=='In progress'||!task||task.blocked)throw Error('Check unavailable for readings.');
+ requireSectionReady(state,i,task);
  const fields=taskReadings(task);
  if(!Array.isArray(readings)||readings.length!==fields.length||fields.some((r,n)=>!String(readings[n]??'').trim()||r.length===4&&!Number.isFinite(Number(readings[n]))||r[1]==='Yes/No'&&!['Yes','No'].includes(readings[n])))throw Error('Complete valid readings before requesting a recheck.');
  if(!outOfRange(task,{readings}))return {required:false};
@@ -49,6 +51,8 @@ export function saveAnswer(state,id,garage,taskId,answer){
  const i=inspectionFor(state,id,garage),task=tasksFor(i).find(t=>t.id===taskId);
  if(i.status!=='In progress')throw Error('Submitted inspections are locked.');
  if(!task||task.blocked)throw Error('This item is blocked pending technical review.');
+ const sequence=requireSectionReady(state,i,task);
+ if(sequence.evidence(task.section)!==null&&answer.prerequisiteEvidence!==sequence.evidence(task.section))throw Error('Prerequisites changed. Reopen this question and perform a fresh check.');
  if(!['OK','Defect','Fixed','Not completed','Not due'].includes(answer.result))throw Error('Select a result.');
  if(answer.result==='Not due'&&(!task.conditional||task.id==='2-20'))throw Error('This task cannot be marked not due.');
  if(!answer.worker?.trim())throw Error('Enter the craftworker for this item.');
@@ -60,7 +64,7 @@ export function saveAnswer(state,id,garage,taskId,answer){
  if(pending&&!pending.resolvedAt&&(!['OK','Defect','Fixed'].includes(answer.result)||!answer.recheckConfirmed||String(answer.recheckNote||'').trim().length<5))throw Error('Recheck required: take fresh readings and explain the outcome (at least 5 characters).');
  if(outOfRange(task,answer)&&['OK','Fixed'].includes(answer.result))throw Error('Reading outside the source tolerance. Record a defect and details for review.');
  const previous=i.answers[taskId];
- if(previous?.fault&&!['Defect','Fixed'].includes(answer.result))throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
+ if(previous?.fault&&!['Defect','Fixed'].includes(answer.result)&&!(answer.result==='OK'&&sequence.ruleFor(task.section)?.mode!=='any'&&!sequence.current(task)&&verifiedInspectionFault(state,i,previous.fault)))throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
  const failed=['Defect','Fixed'].includes(answer.result),fixed=answer.result==='Fixed';
  const toleranceEvidence=outOfRange(task,answer)||outOfRange(task,{readings:pending?.readings})||outOfRange(task,previous||{});
  const failureType=failed?(answer.failureType==='tolerance'&&toleranceEvidence?'tolerance':'visual'):null;
@@ -92,12 +96,17 @@ export function saveAnswer(state,id,garage,taskId,answer){
   }
  }
  if(pending&&!pending.resolvedAt){saved.recheck={first:structuredClone(pending),readings:[...answer.readings],note:answer.recheckNote,worker:answer.worker,at:saved.updated};pending.resolvedAt=saved.updated;}
+ delete saved.prerequisiteEvidence;
+ saved.revision=crypto.randomUUID();
+ // Evidence is derived on the server; clients cannot certify their own prerequisites.
+ saved.sequenceEvidence=inspectionSequence(state,i).evidence(task.section);
  i.answers[taskId]=saved;i.audit.push({item:taskId,previous:previous||null,value:structuredClone(saved),at:saved.updated});return saved;
 }
 export function submitInspection(state,id,garage,notes){
  const i=inspectionFor(state,id,garage);if(i.status!=='In progress')throw Error('Inspection already submitted.');
  if(Object.values(i.rechecks||{}).some(x=>!x.resolvedAt))throw Error('Resolve every outstanding recheck before submitting.');
  if(tasksFor(i).some(t=>!t.blocked&&!i.answers[t.id]))throw Error('Record a result for every available item before submitting.');
+ requireCurrentSequence(state,i);
  i.notes=notes.trim();delete i.returnNotes;i.status='Awaiting review';i.submitted=new Date().toISOString();
  i.audit.push({action:'Submit for review',at:i.submitted,actor:i.amendment?.actor||i.craftworker});
  if(state.actions.some(a=>a.source===i.id&&a.garage===garage&&a.status==='Open'))return;

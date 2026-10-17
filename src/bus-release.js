@@ -1,3 +1,4 @@
+import {inspectionSequence} from './section-sequencing.js';
 import {openCriticalFaults,criticalCheckBlocked} from './critical-safety.js';
 import {reviewer,manager,workerName} from './roles.js';
 import {today,validDate,scheduleStatus} from './scheduling.js';
@@ -11,6 +12,8 @@ export function releaseAssessment(s,g,id,date=today()){
  const live=k=>rows(s,g,id,k).filter(x=>!x.deletedAt&&!x.voidedAt);
  const faults=live('faults'),jobs=live('jobs'),ins=live('inspections').filter(isPM3),checks=live('checklistRuns'),actions=live('actions'),down=live('downtime');
  const critical=openCriticalFaults(s,g,id);
+ const sequenceInvalid=ins.some(i=>{const sequence=inspectionSequence(s,i);return tasksFor(i).some(t=>!t.blocked&&i.answers?.[t.id]&&sequence.ruleFor(t.section)?.mode!=='any'&&(!sequence.current(t)||!sequence.gate(t.section).ready));});
+ if(sequenceInvalid)blockers.push('Inspection prerequisites changed: repeat the affected checks and Test Drive.');
  if(critical.length)blockers.push(`${critical.length} Critical Safety Fault${critical.length===1?'':'s'}: bus held until repaired and successfully rechecked.`);
  if([...ins,...checks].some(x=>criticalCheckBlocked(s,x)))blockers.push('Critical safety check failures require verified repair evidence.');
  if(faults.some(x=>x.status!=='Closed'))blockers.push('Open vehicle faults must be reviewed and closed.');
