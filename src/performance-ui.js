@@ -5,9 +5,10 @@ import {manager,author} from './roles.js';
 import {fleetModels,fleetModel} from './fleet-models.js';
 import {validDate} from './scheduling.js';
 import {performanceReport,coverage,modelKey,dublinDate,dublinTime,activeDowntime} from './performance-model.js';
+import {faultAnalysisView,setupFaultAnalysis,faultAnalysisBusy} from './fault-analysis-ui.js';
 let host,busy=false,tab='overview',page=0;
 const current=dublinDate(new Date());let filters={from:current.slice(0,7)+'-01',to:current,model:'',type:'',bus:''};
-export const performanceBusy=()=>busy;
+export const performanceBusy=()=>busy||faultAnalysisBusy();
 export const performanceRoute=p=>p.split('/')[0]==='performance';
 const number=v=>Number(v||0).toLocaleString('en-IE',{maximumFractionDigits:2});
 const money=v=>Number(v||0).toLocaleString('en-IE',{style:'currency',currency:'EUR',maximumFractionDigits:2});
@@ -34,7 +35,7 @@ function reportHeader(c,garageName){
  const lastTo=last.toISOString().slice(0,10),thisMonth=filters.from===current.slice(0,7)+'-01'&&filters.to===current,lastMonth=filters.from===lastTo.slice(0,7)+'-01'&&filters.to===lastTo;
  const range=new Intl.DateTimeFormat('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'}).formatRange(new Date(filters.from+'T12:00:00Z'),new Date(filters.to+'T12:00:00Z'));
  const active=[filters.model,filters.type,filters.bus].filter(Boolean).length;
- return `<div class="perf-header">${heading('Performance')}<div class="report-switch perf-tabs" role="group" aria-label="Management view">${['overview','buses','models','warranty'].map(k=>`<button type="button" data-perf-tab="${k}" aria-pressed="${tab===k}">${{overview:'Overview',buses:'Buses',models:'Models',warranty:'Warranty'}[k]}</button>`).join('')}</div>
+ return `<div class="perf-header">${heading('Performance')}<div class="report-switch perf-tabs" role="group" aria-label="Management view">${['overview','buses','models','warranty'].map(k=>`<button type="button" data-perf-tab="${k}" aria-pressed="${tab===k}">${{overview:'Overview',buses:'Buses',models:'Models',warranty:'Warranty'}[k]}</button>`).join('')}<button type="button" data-go="performance/faults" aria-pressed="false">Faults</button></div>
  <div class="perf-toolbar"><button type="button" data-go="performance/new">+ Record downtime</button><details class="perf-more"><summary>More</summary><div class="perf-more-actions"><button type="button" class="secondary" data-perf-refresh>Refresh</button><button type="button" class="secondary" data-perf-export>Export CSV</button></div></details></div>
  <details class="perf-report-filters"><summary>Dates & filters${active?` <span class="perf-filter-count">${active} active</span>`:''}<span class="perf-filter-context">${esc(garageName)} · ${esc(range)}</span></summary><div class="perf-filter-body"><div class="perf-presets" role="group" aria-label="Reporting period"><button type="button" data-period="this" aria-pressed="${thisMonth}">This month</button><button type="button" data-period="last" aria-pressed="${lastMonth}">Last month</button></div>${filterForm(c)}</div></details></div>`;
 }
@@ -53,6 +54,7 @@ export function performanceView(c){
  if(!manager(c.me))return frame('Manager access required','This view is available to garage managers and administrators.','home');
  if(!c.garage)return frame('Choose a garage','Choose a garage to view its management records.','manage');
  let parts;try{parts=c.page.split('?')[0].split('/').map(decodeURIComponent);}catch{return frame('Record unavailable','Choose a record from this garage.');}
+ if(parts[1]==='faults')return faultAnalysisView(c);
  if(parts[1]==='new')return episodeEditor(c,null,new URLSearchParams(c.page.split('?')[1]||'').get('bus')||'');
  if(parts[1]==='warranty')return warrantyEditor(c,parts[2]);
  if(parts[1]==='bus')return busDetail(c,parts[2]);
@@ -65,11 +67,11 @@ export function performanceView(c){
  <details class="card"><summary>Calculation basis & daily rates</summary><p>Off-road time is elapsed hours ÷ 24, clipped to the selected Dublin dates and current time. The downtime rate is prorated; this is an estimate until Dublin Bus confirms its day-counting rule.</p><p>Mechanic allowance uses recorded job-start dates plus evidenced manual work dates, once per bus per date. It is a daily allowance, not labour hours or payroll cost. Missing job activity can understate this allowance.</p><p>Warranty coverage uses the saved start and end dates on each off-road record. Standard coverage ends at the start of the anniversary date; an individual extension includes the entered expiry date. Changed terms require an explicit reassessment of existing records.</p><p>Manufacturer delay starts after the agreed elapsed-hour window from notification and stops at recorded manufacturer repair or the end of the off-road period. Acceptance of a warranty case is recorded separately from coverage dates. Exposure amounts are subsets of downtime cost, not extra charges or confirmed recoverable claims.</p><p>These figures exclude parts, mileage and other running costs, so they are not total cost per kilometre. No recorded downtime does not certify a bus as roadworthy.</p><form data-performance-form="downtime_rates"><div class="ops-fields"><label>Off-road allowance (€ / day)<input type="number" step="0.01" min="0" max="100000" name="downtime" value="${c.state.downtimeRates?.downtime??190}" required></label><label>Mechanic allowance (€ / bus / working date)<input type="number" step="0.01" min="0" max="100000" name="mechanic" value="${c.state.downtimeRates?.mechanic??87}" required></label></div><label>Reason / reference<textarea name="changeReason" required maxlength="2000"></textarea></label><p class="help">New rates apply to newly recorded off-road periods. Existing records retain their original rates.</p><button>Save rates</button>${error}</form></details><div class="toolbar">${backRoute('garage-today')}</div></section>`;
 }
 export function reportCSV(r){const escape=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};const header=['From','To','Bus','Model','Bus type','Visits','Days lost','Covered days','Outside warranty days','Unknown coverage days','Manufacturer late days','Mechanic days','Downtime cost EUR','Mechanic cost EUR','Total estimated cost EUR','Critical faults raised in period','Critical faults open now','Bus held for critical fault now','Checks with critical faults raised in period'];return [header,...r.rows.map(x=>[r.from,r.to,x.bus.id,x.model,x.type,x.visits,x.days.toFixed(4),x.covered.toFixed(4),x.outside.toFixed(4),x.unknown.toFixed(4),x.late.toFixed(4),x.mechanicDays,x.downtimeCost.toFixed(2),x.mechanicCost.toFixed(2),x.cost.toFixed(2),x.criticalRaised,x.criticalOpen,x.criticalBusesHeld,x.criticalChecks])].map(row=>row.map(escape).join(',')).join('\r\n');}
-export function setupPerformance(h){host=h;
+export function setupPerformance(h){host=h;setupFaultAnalysis(h);
  document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b||busy||!performanceRoute(host.context().page))return;
   if(b.hasAttribute('data-table-columns')){const wrap=b.closest('.perf-table-wrap'),open=wrap.classList.toggle('show-all-columns');b.textContent=open?'Fewer columns':'More columns';b.setAttribute('aria-expanded',String(open));return;}
   if(b.dataset.period){const now=new Date(current+'T12:00:00Z');if(b.dataset.period==='last'){now.setUTCDate(0);filters.to=now.toISOString().slice(0,10);filters.from=filters.to.slice(0,7)+'-01';}else{filters.from=current.slice(0,7)+'-01';filters.to=current;}page=0;host.render();return;}
-  if(b.dataset.perfTab){tab=b.dataset.perfTab;page=0;host.render();return;}
+  if(b.dataset.perfTab){tab=b.dataset.perfTab;page=0;if(host.context().page!=='performance')host.go('performance');else host.render();return;}
   if(b.dataset.perfPage){page+=Number(b.dataset.perfPage);host.render();return;}
   if(b.hasAttribute('data-perf-refresh')){busy=true;try{await host.reload();host.render();}catch(err){host.notify(err.message);}finally{busy=false;}return;}
   if(b.hasAttribute('data-perf-export')){const c=host.context();if(!manager(c.me))return;const r=performanceReport(c.state,c.garage,c.content,filters),blob=new Blob(['\uFEFF'+reportCSV(r)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fleettap-downtime-${filters.from}-${filters.to}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}

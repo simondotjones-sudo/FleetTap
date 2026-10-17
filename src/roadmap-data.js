@@ -10,7 +10,7 @@ export const deliveryReview={
  'shift-handover':{status:'Available',note:'Job pause notes, voice or text action handovers and end-of-day handover are available. Supervisor-confirmed consolidated handovers remain further scope.'},
  'return-to-service':{status:'Available',note:'Release requirements, blocking faults and separate authorised release decisions are available.'},
  'parts-tracker':{status:'Idea',note:'Jobs can wait for parts. Part requests, purchasing references, delivery dates and chasing owners are not yet built.'},
- 'bus-history':{status:'Available',note:'Grouped bus records, dated events, amendment history and CSV export are available. Automated recurring-fault detection remains further scope.'},
+ 'bus-history':{status:'Available',note:'Grouped bus records, amendment history and CSV export are available. PM3 question analysis flags repeated findings on the same bus, shows failure rates and distinguishes repeats after closure from unresolved findings. Unlinked free-text faults remain outside automatic matching.'},
  'workshop-planner':{status:'Available',note:'Planning, assigning and rescheduling jobs by date and mechanic are available and tested. Bay capacity, estimated hours and mileage feeds remain future enhancements.'},
  'driver-reports':{status:'Available',note:'Garage staff can photograph a driver docket, review extracted details and create a fault with up to three source photos. Direct driver entry and integrations remain further scope.'},
  'vehicle-record-pack':{status:'In dev',note:'Bus history can be filtered by date and exported as CSV. A combined maintenance pack with supporting documents remains to be built.'},
