@@ -9,7 +9,7 @@ let host,features=null,loading=false,error='',editing=false,present=false,busy=f
 export const roadmapBusy=()=>busy;
 export const roadmapRoute=p=>['roadmap','garage-today'].includes(p.split('/')[0]);
 function load(){if(loading||features||error)return;loading=true;api('roadmap').then(r=>features=r.features).catch(e=>error=e.message).finally(()=>{loading=false;if(host.context().page.startsWith('roadmap'))host.render();});}
-const header=(title,sub,tools='')=>`<div class="future-heading"><div><p class="future-eyebrow">FleetTap / What's next</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></div><div class="toolbar">${tools}</div></div>`;
+const header=(title,sub,tools='')=>`<div class="future-heading"><div><h1>${esc(title)}</h1><p>${esc(sub)}</p></div><div class="toolbar">${tools}</div></div>`;
 const feedback=f=>`<section class="card"><h2>Discussion notes</h2>${f.feedback.length?f.feedback.slice().reverse().map(n=>`<article class="future-note"><small>${esc(n.author)} · ${esc(stamp(n.at))}</small><p>${esc(n.note)}</p></article>`).join(''):'<p class="muted">No feedback yet. Capture the first conversation here.</p>'}${!present?`<form data-roadmap-form="feedback" data-id="${f.id}"><label>Add feedback<textarea name="note" required maxlength="4000" placeholder="What did we learn? Who raised it? What should change?"></textarea></label><button>Add dated note</button><p class="form-error" role="alert"></p></form>`:''}</section>`;
 export function roadmapView(c){
  if(c.page.startsWith('garage-today'))return manager(c.me)?garageView(c.page):'<section class="card"><h1>Manager access required</h1></section>';

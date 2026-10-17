@@ -22,5 +22,5 @@ test('full SOP preserves all supplied clauses and history; links back to the sam
  assert.equal(to01.clauses.length,10);
 });
 test('each authoring step exposes source reference and full SOP without implying approval',()=>{
- const state=seed();for(let n=0;n<authorSteps.length;n++){const html=sopView({state,garage:'demo-north',page:'sops/to01/author/'+n});assert.ok(html.includes(`Step ${n+1} of 7`));assert.match(html,/technical review pending/);assert.match(html,/View full SOP/);assert.ok(html.includes(esc(authorSteps[n].ref)));}
+ const state=seed();for(let n=0;n<authorSteps.length;n++){const html=sopView({state,garage:'demo-north',page:'sops/to01/author/'+n});assert.ok(html.includes(`<h1>${esc(authorSteps[n].title)}</h1>`));assert.match(html,/technical review pending/);assert.match(html,/View full SOP/);assert.ok(html.includes(esc(authorSteps[n].ref)));}
 });
