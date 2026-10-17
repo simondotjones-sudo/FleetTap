@@ -1,5 +1,21 @@
-export const deliveredFeatures={'garage-today':'Daily job board, team assignments and day plan','job-cards':'Assigned jobs, work evidence and supervisor sign-off','shift-handover':'Job pause notes and end-of-day handover','return-to-service':'Evidence-based release requirements and authorised decisions','bus-history':'Grouped bus records and history export','bus-work-pack':'Linked jobs, faults, actions, inspections and release requirements'};
-export const statuses=['Available — initial version','Idea','Discovery','Planned','In development','Available'];
+export const statuses=['Available','Idea','In dev'];
+// Reviewed against the shipped workflows on 17 October 2026. Available means the
+// described usable scope exists; In dev means only part of the brief exists.
+export const deliveryReview={
+ 'bus-work-pack':{status:'Available',note:'Linked jobs, faults, actions, inspections and release requirements are available in the bus workspace. Parts requests remain further scope.'},
+ 'voice-updates':{status:'In dev',note:'Tap to talk and review before saving are available. Structured AI updates and uncertainty checks remain to be built.'},
+ 'workshop-knowledge':{status:'In dev',note:'SOPs, model-specific instructions and acknowledgement controls are available. Suggested past repairs and source-linked knowledge answers remain to be built.'},
+ 'garage-today':{status:'Available',note:'Daily job board, mechanic assignments, team view and day plans are available.'},
+ 'job-cards':{status:'Available',note:'Assigned jobs, linked faults, work evidence, waiting states and supervisor sign-off are available.'},
+ 'shift-handover':{status:'Available',note:'Job pause notes, voice or text action handovers and end-of-day handover are available. Supervisor-confirmed consolidated handovers remain further scope.'},
+ 'return-to-service':{status:'Available',note:'Release requirements, blocking faults and separate authorised release decisions are available.'},
+ 'parts-tracker':{status:'Idea',note:'Jobs can wait for parts. Part requests, purchasing references, delivery dates and chasing owners are not yet built.'},
+ 'bus-history':{status:'Available',note:'Grouped bus records, dated events, amendment history and CSV export are available. Automated recurring-fault detection remains further scope.'},
+ 'workshop-planner':{status:'In dev',note:'Jobs can be scheduled and reassigned by date and mechanic. Bay capacity, estimated hours and mileage feeds remain to be built.'},
+ 'driver-reports':{status:'Available',note:'Garage staff can photograph a driver docket, review extracted details and create a fault with up to three source photos. Direct driver entry and integrations remain further scope.'},
+ 'vehicle-record-pack':{status:'In dev',note:'Bus history can be filtered by date and exported as CSV. A combined maintenance pack with supporting documents remains to be built.'},
+ 'model-campaigns':{status:'In dev',note:'Required instructions can target models or fleet IDs, with staff acknowledgements. Per-bus campaign tasks, completion evidence and campaign progress remain to be built.'}
+};
 export const priorities=['Discuss','High','Medium','Low'];
 const seeds=[
 ['bus-work-pack','Bus Work Pack','The complete story of a bus, in one place.','workpack','Mechanics and supervisors must piece together faults, inspections, repairs and handovers from separate records.','Connect faults, inspections, job cards, parts requests, handover notes and release requirements in one bus workspace. Show the owner, next action and blocker for each open item. Link existing records without duplicating them. Keep repair completion, inspection sign-off and authorised release distinct.','A mechanic scans a bus and sees its reported door fault, previous repair, assigned job and outstanding test. The supervisor can see exactly what remains before release.','Which records should open first? What identifiers connect existing systems? Who owns each step and the final release decision?'],
@@ -24,7 +40,7 @@ const scopeAdditions={
  'shift-handover':'Automatically prepare a draft from unfinished jobs, owners, blockers and next actions. Link each item to its source record and highlight missing details. A supervisor reviews and confirms the handover before it is shared with the next shift.'
 };
 const deliveryStandards='Fast loading on workshop devices, large touch targets and minimal repeated entry. Preserve drafts through interruptions, show clearly whether work is saved or pending, and recover safely after a lost connection without duplicate records. Agree measurable speed and recovery checks with the garage before release.';
-export const roadmapSeeds=seeds.map(([id,title,summary,icon,problem,experience,example,questions])=>({id,title,summary,icon,problem,experience,example,questions,...(scopeAdditions[id]?{additionalScope:scopeAdditions[id]}:{}),deliveryStandards,status:id==='garage-today'?'Discovery':'Idea',priority:['bus-work-pack','garage-today','job-cards','shift-handover','return-to-service'].includes(id)?'High':'Discuss',nextStep:id==='bus-work-pack'?'First priority: map one complete bus journey with Dublin Bus and agree the shared record structure before building the connected workflow.':'Validate the workflow with Dublin Bus before agreeing scope.',feedback:[],version:0,updatedAt:null}));
+export const roadmapSeeds=seeds.map(([id,title,summary,icon,problem,experience,example,questions])=>({id,title,summary,icon,problem,experience,example,questions,...(scopeAdditions[id]?{additionalScope:scopeAdditions[id]}:{}),deliveryStandards,status:deliveryReview[id].status,priority:['bus-work-pack','garage-today','job-cards','shift-handover','return-to-service'].includes(id)?'High':'Discuss',nextStep:id==='bus-work-pack'?'First priority: map one complete bus journey with Dublin Bus and agree the shared record structure before building the connected workflow.':'Validate the workflow with Dublin Bus before agreeing scope.',feedback:[],version:0,updatedAt:null}));
 export function validateBrief(v){
  const out={};for(const [key,max] of Object.entries({title:100,summary:180,problem:5000,experience:5000,example:3000,questions:3000,nextStep:2000})){
  if(typeof v?.[key]!=='string'||!v[key].trim()||v[key].length>max)throw Error(`Enter ${key} (maximum ${max} characters).`);out[key]=v[key].trim();}

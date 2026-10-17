@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {NetlifyDB} from '@netlify/database-dev';
 import {getDatabase} from '@netlify/database';
 import pg from 'pg';
@@ -7,10 +8,12 @@ import pg from 'pg';
 // fleet-management-database.test.mjs so a losing request cannot roll back another.
 const NativePool=pg.Pool;pg.Pool=class extends NativePool{constructor(options){super({...options,max:1});}};
 import {hash,randomToken} from '../server/security.mjs';
-import {roadmapSeeds,validateBrief} from '../src/roadmap-data.js';
+import {roadmapSeeds,validateBrief,statuses} from '../src/roadmap-data.js';
 import {roadmapView,demoBuses} from '../src/roadmap-ui.js';
 test('roadmap validation and demo access',()=>{
  assert.equal(roadmapSeeds.length,13);assert.throws(()=>validateBrief({...roadmapSeeds[0],status:'bogus'}));
+ assert.deepEqual(statuses,['Available','Idea','In dev']);
+ assert.deepEqual(statuses.map(status=>roadmapSeeds.filter(f=>f.status===status).length),[7,1,5]);
  for(const role of ['supervisor','mechanic'])assert.match(roadmapView({me:{role},page:'garage-today'}),/access required/);
  for(const role of ['organisation_admin','garage_manager']){assert.match(roadmapView({me:{role},page:'garage-today'}),/Sample data/);assert.match(roadmapView({me:{role},page:'roadmap'}),/Platform Admin access required/);}
  assert.equal(demoBuses.length,6);assert.match(roadmapView({me:{role:'platform_admin'},page:'garage-today'}),/DEMO-101/);
@@ -35,5 +38,26 @@ test('roadmap persists edits and feedback, rejects unauthorised and stale writes
  f=(await (await call()).json()).features.find(f=>f.id==='garage-today');assert.equal(f.feedback.length,1);assert.equal(f.version,3);assert.match(f.additionalScope,/mechanics see assigned work/);assert.match(f.deliveryStandards,/Preserve drafts/);
  const [legacy]=await sql`SELECT data FROM product_roadmap WHERE id=${b.id}`;delete legacy.data.additionalScope;delete legacy.data.deliveryStandards;await sql`UPDATE product_roadmap SET data=${JSON.stringify(legacy.data)}::jsonb WHERE id=${b.id}`;
  f=(await (await call()).json()).features.find(f=>f.id===b.id);assert.equal(f.title,'Amended brief');assert.equal(f.feedback.length,1);assert.match(f.additionalScope,/mechanics see assigned work/);assert.match(f.deliveryStandards,/Preserve drafts/);
+ // Existing stored briefs must receive the review too, without losing custom text
+ // or discussion notes. Seed-only fixes would leave these records incorrectly tagged.
+ for(const seed of roadmapSeeds)await sql`INSERT INTO product_roadmap(id,data) VALUES(${seed.id},${JSON.stringify(seed)}::jsonb) ON CONFLICT DO NOTHING`;
+ await sql`UPDATE product_roadmap SET data=jsonb_set(data,'{status}','"Idea"'::jsonb)`;
+ await sql`UPDATE product_roadmap SET data=jsonb_set(data,'{status}','"Available — initial version"'::jsonb) WHERE id='bus-work-pack'`;
+ const before=await sql`SELECT id,data,version FROM product_roadmap`;
+ const reviewSQL=await readFile(new URL('../netlify/database/migrations/20261017100000_roadmap_status_review.sql',import.meta.url),'utf8');
+ await client.pool.query(reviewSQL);
+ const reviewed=(await (await call()).json()).features;
+ for(const seed of roadmapSeeds){
+  const prior=before.find(f=>f.id===seed.id),current=reviewed.find(f=>f.id===seed.id);
+  assert.equal(current.status,seed.status,seed.id);
+  assert.equal(current.title,prior.data.title);assert.deepEqual(current.feedback,prior.data.feedback);
+  assert.equal(current.version,prior.version+(prior.data.status===seed.status?0:1));
+ }
+ assert.equal((await call({...b,version:3})).status,409);
+ await client.pool.query(reviewSQL);
+ assert.deepEqual((await (await call()).json()).features,reviewed,'Review does not change versions a second time');
+ f=reviewed.find(f=>f.id===b.id);
+ assert.equal((await call({...b,version:f.version,values:{...f,status:'In dev'}})).status,200);
+ assert.equal((await (await call()).json()).features.find(f=>f.id===b.id).status,'In dev','Admin status edits remain authoritative after the review');
  }finally{await (await import('../netlify/functions/roadmap.mjs')).closeRoadmapDatabase();await client.pool.end();await (await import('../server/runtime.mjs')).closeDatabase();await local.stop();}
 });

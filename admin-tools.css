@@ -143,3 +143,16 @@
 
 .template-comparison>*{min-width:0}.template-comparison fieldset{min-width:0}.template-comparison .preview-answers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.template-comparison .preview-answers span{min-width:0;padding:14px 10px}
 @media(max-width:760px){.template-comparison{grid-template-columns:minmax(0,1fr)}}
+
+/* Product Roadmap status controls */
+.roadmap-filters{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:0 auto 26px}
+.roadmap-filters button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:11px 17px;border:1px solid #e2e5e9;border-radius:30px;background:#fff;color:#505862;font-size:14px;white-space:nowrap}
+.roadmap-filters button span{font-size:12px;font-weight:400;opacity:.8}
+.roadmap-filters button:hover{background:#f1f3f5;color:#17191c;border-color:#b9bec5}
+.roadmap-filters button[aria-pressed=true]{background:#17191c;color:#fff;border-color:#17191c}
+.future-tile.roadmap-available{border:2px solid #32834d}
+.future-tile.roadmap-available:hover{border-color:#26643c}
+.future-status.roadmap-available{background:#edf8ef;color:#26643c}
+.future-status.roadmap-development{background:#fff3dd;color:#805619}
+.roadmap-empty{grid-column:1/-1;text-align:center}
+@media(max-width:480px){.roadmap-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}.roadmap-filters button{padding:11px 12px}}
