@@ -17,7 +17,7 @@ function screen(message=''){
    if(token||register){if(v.password!==v.confirm)throw Error('Passwords do not match.');}
    if(token){await api('auth',{action:'activate',token,password:v.password});token=null;screen('Password saved. Sign in below.');}
    else if(register){const r=await api('auth',{action:'register',...v,code:registration.code});register=false;registration=null;preference('fleettap-organisation-code',r.organisation_code);screen('Account created. Your organisation code is '+r.organisation_code+'.');document.querySelector('[name=organisation_code]').value=r.organisation_code;document.querySelector('[name=identifier]').value=v.email||v.employee_id;loginMode();}
-   else{const r=await api('auth',{action:'login',...v});if(v.organisation_code)preference('fleettap-organisation-code',v.organisation_code);let resume;try{resume=JSON.parse(sessionStorage.getItem('fleettap-resume')||'null');sessionStorage.removeItem('fleettap-resume');}catch{}location.hash=resume?.user===r.user.id?resume.page:['mechanic','supervisor'].includes(r.user.role)?'my-jobs':'garage-today';location.reload();}
+   else{const r=await api('auth',{action:'login',...v});if(v.organisation_code)preference('fleettap-organisation-code',v.organisation_code);let resume;try{resume=JSON.parse(sessionStorage.getItem('fleettap-resume')||'null');sessionStorage.removeItem('fleettap-resume');}catch{}location.hash=resume?.user===r.user.id?resume.page:r.user.role==='organisation_admin'?'fleet':['mechanic','supervisor'].includes(r.user.role)?'my-jobs':'garage-today';location.reload();}
   }catch(err){document.querySelector('#auth-error').textContent=err.message;btn.disabled=false;}
  });
 }

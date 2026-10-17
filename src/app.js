@@ -47,9 +47,9 @@ Object.assign(paths,{
 });
 const icon=k=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[k]||paths.checks}"/></svg>`;
 const tiles=[['Report','Incidents &|safety concerns','report'],['SOPs','Procedures &|instructions','sops'],['Checks','Inspections &|maintenance','checks'],['Faults','Vehicle defects|& repairs','faults'],['Actions','Your tasks &|handover','actions'],['Fleet','Buses, status|& history','fleet']];
-// Opening the app with a saved manager session should start at the garage board.
+// Opening the app with a saved manager session should start at its role’s overview.
 // Explicit routes, including the Home button and saved work, keep their destination.
-if(manager(me)&&(!location.hash||location.hash==='#login'))history.replaceState(null,'',location.pathname+location.search+'#garage-today');
+if(manager(me)&&(!location.hash||location.hash==='#login'))history.replaceState(null,'',location.pathname+location.search+(me.role==='organisation_admin'?'#fleet':'#garage-today'));
 const routeTrail=[];let lastRoute=location.hash.slice(1)||'home',goingBack=false;
 const current=()=>location.hash.slice(1)||'home',rows=k=>scoped(state[k],garage),pill=(label,tone='')=>`<span class="pill ${tone}">${esc(label)}</span>`;
 function notify(text){$('#message').textContent=text;$('#message').classList.add('show');clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('#message').classList.remove('show'),5000);}
@@ -64,7 +64,7 @@ function setProfile(open,restoreFocus=false){
 function heading(title){return `<h1 class="fleet-heading">${title}</h1>`;}
 function tabs(items){return `<div class="report-switch fleet-tabs" role="group" aria-label="View">${items.map(([id,label])=>`<button data-mode="${id}" aria-pressed="${mode===id}">${label}</button>`).join('')}</div>`;}
 function empty(text){return `<section class="card empty">${text}</section>`;}
-function home(){return `<div class="ops-home-entry toolbar">${manager(me)?'<button data-go="garage-today">Garage Today</button>':'<button data-go="my-jobs">My day</button>'}</div>`+'<h1 class="sr-only">FleetTap home</h1><section class="home-tasks" aria-label="Garage tasks">'+tiles.map(([title,description,key])=>`<button class="home-task" data-go="${key}">${icon(key)}<strong>${title}</strong><span>${description.split('|').join('<br>')}</span></button>`).join('')+'</section>';}
+function home(){return `<div class="ops-home-entry toolbar">${me.role==='organisation_admin'?'<button data-go="fleet">Fleet overview</button>':manager(me)?'<button data-go="garage-today">Garage Today</button>':'<button data-go="my-jobs">My day</button>'}</div>`+'<h1 class="sr-only">FleetTap home</h1><section class="home-tasks" aria-label="Garage tasks">'+tiles.map(([title,description,key])=>`<button class="home-task" data-go="${key}">${icon(key)}<strong>${title}</strong><span>${description.split('|').join('<br>')}</span></button>`).join('')+'</section>';}
 function recordList(kind){const list=rows(kind);return list.length?`<div class="fleet-list">${list.map(r=>`<article class="card"><div class="row"><h2>${esc(r.title)}</h2>${pill(r.status,'attention')}</div><p class="muted">${esc(r.id)} · ${esc(r.vehicle||'Garage')} · ${esc(r.type||'Vehicle defect')}</p><p class="record-note">${esc(r.description)}</p>${r.immediate?`<p class="record-note"><strong>Immediate response:</strong> ${esc(r.immediate)}</p>`:''}${photoGallery(r.photos,garage)}<button class="secondary" data-go="records/${kind}/${encodeURIComponent(r.id)}">View linked actions</button></article>`).join('')}</div>`:empty(`No ${kind} recorded in this garage.`);}
 function reports(kind){return mode==='records'?heading(kind==='faults'?'Faults':'Report')+tabs([['new',kind==='faults'?'Report fault':'New report'],['records','View records']])+recordList(kind):reportFlowView(tabletContext());}
 function sops(){return sopView(tabletContext());}
