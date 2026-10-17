@@ -1,7 +1,7 @@
 import {esc} from './api.js';
 import {today} from './scheduling.js';
 import {displayDate} from './display.js';
-import {garageJobs,jobOpen,dayShift} from './garage-operations.js';
+import {garageJobs,jobOpen,jobStatusLabel,dayShift} from './garage-operations.js';
 import {myActions} from './action-assignment.js';
 import {applies,acknowledgement} from './active-controls.js';
 import {isMyInspection} from './checks-flow.js';
@@ -29,7 +29,7 @@ function personalJob(c,j,instructions=[],record=false){
  const active=dayShift(c.state,c.garage,c.me.id),inspection=c.state.inspections.find(i=>i.id===j.inspectionId&&i.garage===c.garage&&i.vehicle===j.vehicle&&!i.deletedAt);
  const submitted=inspection&&['Awaiting review','Completed'].includes(inspection.status),returned=j.status==='Assigned'&&j.audit?.at(-1)?.event==='Returned for work';
  const meta=[record?displayDate(j.date):j.date<today()?'Carried over · '+displayDate(j.date):'',j.time||'',j.priority&&j.priority!=='Normal'?j.priority:''].filter(Boolean);
- const status=j.status==='Waiting'?j.waitingReason||'Waiting':returned?'Returned for work':j.status;
+ const status=returned?'Returned for work':jobStatusLabel(j);
  const badge=record||j.status!=='Assigned'||returned?`<span class="ops-badge ${j.status==='In progress'?'working':j.status==='Waiting'||returned?'waiting':j.status==='Completed'?'done':''}">${esc(status)}</span>`:'';
  const content=`<span class="my-day-card-top"><strong>${esc(j.vehicle)}</strong>${badge}</span><span class="my-day-title">${esc(j.title)}</span>${meta.length?`<span class="my-day-meta">${esc(meta.join(' · '))}</span>`:''}`;
  let target=`data-go="my-jobs/${esc(j.id)}"`,label=record||!active?'View job':j.status==='In progress'?'Continue job':'Open job',direct=false;

@@ -4,6 +4,7 @@ import {startInspection} from './inspections.js';
 export const jobStatuses=['Unassigned','Assigned','In progress','Waiting','Awaiting sign-off','Completed','Cancelled'];
 export const jobTypes=['Scheduled inspection','Drive-in repair','Repair','Other'];
 export const jobOpen=j=>!['Completed','Cancelled'].includes(j.status);
+export const jobStatusLabel=j=>j.status==='Waiting'?(j.waitingReason==='End of day'?'Paused':j.waitingReason||'Waiting'):j.status;
 export const garageJobs=(s,g)=>(s.jobs||[]).filter(j=>j.garage===g);
 export const dayShift=(s,g,u,date=today())=>(s.shifts||[]).find(x=>x.garage===g&&x.userId===u&&x.date===date&&!x.endedAt);
 export const jobsForDay=(s,g,date=today())=>garageJobs(s,g).filter(j=>j.date===date||(j.date<date&&jobOpen(j)));

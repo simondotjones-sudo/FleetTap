@@ -6,14 +6,14 @@ import {activeDowntime} from './performance-model.js';
 import {esc,api} from './api.js';
 import {manager,reviewer} from './roles.js';
 import {today,scheduleStatus} from './scheduling.js';
-import {garageJobs,jobsForDay,dayShift,jobOpen,jobTypes} from './garage-operations.js';
+import {garageJobs,jobsForDay,dayShift,jobOpen,jobStatusLabel,jobTypes} from './garage-operations.js';
 let host,busy=false,selectedDate=today(),view='jobs',status='All';
 export const operationsBusy=()=>busy;
 export const operationsRoute=p=>['garage-today','my-jobs'].includes(p.split('/')[0]);
 const button=(action,label,id='',secondary=false)=>`<button type="button" ${secondary?'class="secondary"':''} data-operation="${action}" data-id="${esc(id)}">${label}</button>`;
 const go=(page,label)=>`<button class="secondary" type="button" data-go="${esc(page)}">${label}</button>`;
 const stamp=v=>v?new Date(v).toLocaleString('en-IE',{timeZone:'Europe/Dublin',dateStyle:'medium',timeStyle:'short'}):'—';
-const badge=j=>`<span class="ops-badge ${j.status==='In progress'?'working':j.status==='Waiting'?'waiting':j.status==='Completed'?'done':''}">${esc(j.status==='Waiting'?j.waitingReason||'Waiting':j.status)}</span>`;
+const badge=j=>`<span class="ops-badge ${j.status==='In progress'?'working':j.status==='Waiting'?'waiting':j.status==='Completed'?'done':''}">${esc(jobStatusLabel(j))}</span>`;
 const localStaff=c=>(c.assignees||[]).filter(p=>p.garage_id===c.garage&&['mechanic','supervisor','garage_manager'].includes(p.role));
 const staffOptions=(c,id)=>`<option value="">Unassigned</option>${localStaff(c).map(p=>`<option value="${esc(p.id)}" ${p.id===id?'selected':''}>${esc(p.name)}</option>`).join('')}`;
 const noteForm=(action,id,label,extra='',value='')=>`<form class="card ops-form" data-operation-form="${action}" data-id="${esc(id)}"><h2>${label}</h2>${extra}<label>${action==='job_submit'?'Work completed and checks performed':'Notes / next action'}<textarea name="note" required maxlength="2000" rows="3">${esc(value)}</textarea></label><button>${label}</button><p class="form-error" role="alert"></p></form>`;
@@ -34,7 +34,7 @@ function unplannedInspections(c,mine=false){
  return list.length?`<section class="card"><h2>Inspections outside the job plan</h2>${list.map(i=>`<div class="unplanned-inspection"><div><strong>${esc(i.vehicle)}</strong><p>${Object.keys(i.answers||{}).length} answers saved · ${esc(i.craftworker)}</p></div><div class="toolbar">${go('inspection/'+i.id,'Resume inspection')}${manager(c.me)?go('garage-today/new?bus='+encodeURIComponent(i.vehicle),'Assign existing inspection'):''}</div></div>`).join('')}</section>`:'';
 }
 
-function detail(c,j,base){
+function detail(c,j){
  const mine=j.assigneeId===c.me.id,active=dayShift(c.state,c.garage,c.me.id),canPlan=manager(c.me)&&['Assigned','Unassigned','Waiting'].includes(j.status);
  return `<section class="ops-page"><h1>${esc(j.vehicle)}</h1><section class="card ops-detail"><div class="row"><span class="ops-eyebrow">${esc(j.type)}</span>${badge(j)}</div><h2>${esc(j.title)}</h2>${releaseBadge(c,j.vehicle)}<p class="ops-preserve">${esc(j.description)}</p><div class="ops-facts"><div><small>ASSIGNED TO</small><strong>${esc(j.assigneeName||'Unassigned')}</strong></div><div><small>PLANNED</small><strong>${esc(new Date(j.date+'T12:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short'}))} · ${esc(j.time||'Flexible')}</strong></div><div><small>PRIORITY</small><strong>${esc(j.priority)}</strong></div></div>${j.handover?`<div class="ops-briefing"><p>${esc(j.handover)}</p></div>`:''}${j.workDone?`<h3>Work completed</h3><p class="ops-preserve">${esc(j.workDone)}</p>`:''}<details><summary>Bus information</summary><div class="toolbar">${go('vehicle/'+encodeURIComponent(j.vehicle),'Bus records')}${go('bus-release/'+encodeURIComponent(j.vehicle),'Release status')}${manager(c.me)?go('performance/bus/'+encodeURIComponent(j.vehicle),'Downtime & warranty'):''}${go('checks/'+encodeURIComponent(j.vehicle),'Bus checks')}</div></details></section>${linkedWork(c,j)}
  ${mine&&jobOpen(j)&&!active?`<section class="card"><p>Start your day to work on this job.</p>${button('shift_start','Start my day')}</section>`:''}
@@ -42,14 +42,14 @@ function detail(c,j,base){
  ${mine&&active&&j.status==='In progress'?`<div class="toolbar">${j.type==='Scheduled inspection'&&!c.state.inspections.some(i=>i.id===j.inspectionId&&!i.deletedAt&&['Awaiting review','Completed'].includes(i.status))?button('job_checks','Continue inspection',j.id):''}</div>${j.type!=='Scheduled inspection'||c.state.inspections.some(i=>i.id===j.inspectionId&&['Awaiting review','Completed'].includes(i.status))?noteForm('job_submit',j.id,'Submit for sign-off','',(c.state.actions||[]).filter(a=>a.source===j.faultId&&a.status!=='Open').map(a=>a.evidence).filter(Boolean).join('\n')):''}<details class="card"><summary>Pause / waiting</summary>${noteForm('job_wait',j.id,'Pause job','<label>Reason<select name="reason"><option>Awaiting parts</option><option>Awaiting manufacturer</option><option>Paused</option><option>Other</option></select></label>')}</details>`:''}
  ${reviewer(c.me)&&j.status==='Awaiting sign-off'?`<section class="card"><p>Complete the linked reviews, then sign off this job. Release is the final separate decision.</p>${j.inspectionId?go('reviews/inspections/'+j.inspectionId,'Review linked inspection'):''}${go('reviews','Review faults and actions')}</section><div class="ops-two">${noteForm('job_signoff',j.id,'Sign off job')}${noteForm('job_return',j.id,'Return for more work')}</div>`:''}
  ${canPlan?`<details class="card"><summary>Change assignment or schedule</summary><form data-operation-form="job_plan" data-id="${j.id}"><label>Assign to<select name="assigneeId">${staffOptions(c,j.assigneeId)}</select></label><div class="ops-fields"><label>Date<input type="date" name="date" required value="${j.date}"></label><label>Time<input type="time" name="time" value="${esc(j.time)}"></label></div><button>Save plan</button><p class="form-error" role="alert"></p></form></details><details class="card"><summary>Cancel job</summary>${noteForm('job_cancel',j.id,'Cancel job')}</details>`:''}
- <details class="card"><summary>Job history</summary><ol class="ops-audit">${(j.audit||[]).slice().reverse().map(a=>`<li><strong>${esc(a.event)}</strong><small>${esc(stamp(a.at))} · ${esc(a.actor)}</small>${a.note?`<p>${esc(a.note)}</p>`:''}</li>`).join('')}</ol></details><div class="toolbar">${go(base,'← Back to jobs')}</div></section>`;
+ <details class="card"><summary>Job history</summary><ol class="ops-audit">${(j.audit||[]).slice().reverse().map(a=>`<li><strong>${esc(a.event)}</strong><small>${esc(stamp(a.at))} · ${esc(a.actor)}</small>${a.note?`<p>${esc(a.note)}</p>`:''}</li>`).join('')}</ol></details></section>`;
 }
 export function operationsView(c){
  const isBoard=c.page.startsWith('garage-today'),base=isBoard?'garage-today':'my-jobs',id=c.page.split('/')[1]?.split('?')[0];
  if(isBoard&&!manager(c.me))return '<section class="card"><h1>Manager access required</h1></section>';
  if(!isBoard&&id==='records')return myJobRecordsView(c);
  if(id==='new')return manager(c.me)?newJob(c):'<section class="card"><h1>Manager access required</h1></section>';
- if(id){const j=garageJobs(c.state,c.garage).find(j=>j.id===id&&(isBoard||j.assigneeId===c.me.id||reviewer(c.me)));return j?detail(c,j,base):'<section class="card"><h1>Job unavailable</h1></section>';}
+ if(id){const j=garageJobs(c.state,c.garage).find(j=>j.id===id&&(isBoard||j.assigneeId===c.me.id||reviewer(c.me)));return j?detail(c,j):'<section class="card"><h1>Job unavailable</h1></section>';}
  if(!isBoard)return myDayView(c);
  const jobs=jobsForDay(c.state,c.garage,selectedDate),staff=localStaff(c),groups=['Unassigned','Assigned','In progress','Waiting','Awaiting sign-off','Completed'];
  const due=c.state.vehicles.filter(b=>b.garage===c.garage).map(b=>({bus:b,...scheduleStatus(c.state,c.garage,b.id,selectedDate)})).filter(x=>x.due&&x.due<=selectedDate&&!garageJobs(c.state,c.garage).some(j=>j.vehicle===x.bus.id&&j.type==='Scheduled inspection'&&j.status!=='Cancelled'&&(jobOpen(j)||j.sourceDue===x.due)));

@@ -2,5 +2,5 @@
 // Keep the build sequence increasing, including when MAJOR changes.
 export const FLEETTAP_APP_MAJOR = 1;
 export const FLEETTAP_APP_RELEASE_DATE = '17.10.26';
-export const FLEETTAP_APP_BUILD = 30;
+export const FLEETTAP_APP_BUILD = 31;
 export const FLEETTAP_APP_VERSION = `${FLEETTAP_APP_MAJOR}.${FLEETTAP_APP_RELEASE_DATE}.${FLEETTAP_APP_BUILD}`;

@@ -96,6 +96,8 @@ function navigateBack(){
  const local=$('#workspace [data-work-back],#workspace [data-instruction-done],#workspace [data-report-back],#workspace [data-action-back],#workspace [data-fleet-back]');
  if(local){local.click();return;}
  if(routeTrail.length){goingBack=true;go(routeTrail.pop());return;}
+ const root=current().split('/')[0];
+ if(['my-jobs','garage-today'].includes(root)&&current()!==root){go(root);return;}
  const parent=[...document.querySelectorAll('#workspace .tap-footer [data-go],#workspace .toolbar [data-go]')].find(b=>/^(←|Back|Change bus|Choose a bus)/.test(b.textContent.trim()));
  if(parent){go(parent.dataset.go);return;}
  if(current().startsWith('roadmap/')){go('roadmap');return;}
