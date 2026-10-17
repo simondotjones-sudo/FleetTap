@@ -5,4 +5,33 @@
 @media(max-width:600px){.my-day>h1{margin-bottom:20px}.my-day-toggle{width:100%;margin-bottom:24px}.my-day-section{margin:24px 0}.my-day-section>h2{font-size:18px;margin-bottom:12px}.my-day-card{padding:18px;border-radius:20px}.my-day-card strong{font-size:22px}.my-day-instruction strong,.my-day-action strong,.my-day-title{font-size:19px}.my-day-instruction,.my-day-action{gap:14px}.my-day-card-top{flex-wrap:wrap}.my-day-card-top .ops-badge{max-width:100%;white-space:normal}.my-day-next{font-size:14px}}
 .my-day-heading{height:auto;min-height:44px;padding:0;background:transparent;border:0;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 0 28px}.my-day-heading h1{font-size:32px;margin:0}.my-day-end.secondary{min-height:44px;flex-shrink:0;padding:10px 18px;border:1px solid #d8d8d3;border-radius:14px;background:#fff;color:#555;font-size:15px}.my-day-job-panel{font-weight:600}.my-day-job-panel:hover,.my-day-job-panel:active{background:#fff;border-color:#dddcd4;transform:none}.my-day-job-actions{display:grid;grid-template-columns:minmax(0,1fr);justify-items:start;gap:8px;margin-top:20px}.my-day-job-actions>button{min-height:44px;padding:12px 16px;font-size:15px}.my-day-job-actions>.my-day-job-details{justify-self:end;padding:10px 0;background:transparent;color:#555;text-decoration:underline;text-underline-offset:3px}.my-day-job-actions>.my-day-job-details:hover{color:#171717}.my-day-job-actions>button>span{margin-left:6px}@media(max-width:600px){.my-day-heading{margin-bottom:24px}.my-day-heading h1{font-size:28px}.my-day-job-actions{gap:8px 14px}.my-day-job-actions>button{font-size:14px}}
 
-.ops-home-entry>button[data-go="my-jobs"]{width:100%;min-height:54px;padding:14px 28px;border-radius:16px;font-size:19px}@media(max-width:600px){.ops-job-page [data-operation="shift_start"],.ops-job-page [data-operation="job_checks"]{display:block;width:100%;min-height:54px;padding:14px 28px;border-radius:16px;font-size:19px}.my-day-job-actions>button:first-child{width:100%;min-height:48px;font-size:16px}}
+.ops-home-entry>button{width:100%;min-height:54px;padding:14px 28px;border-radius:16px;font-size:19px}@media(max-width:600px){.ops-job-page [data-operation="shift_start"],.ops-job-page [data-operation="job_checks"]{display:block;width:100%;min-height:54px;padding:14px 28px;border-radius:16px;font-size:19px}.my-day-job-actions>button:first-child{width:100%;min-height:48px;font-size:16px}}
+.ops-board{padding-top:0}
+.ops-board>h1{margin:0 0 20px}
+.ops-board-controls{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,1fr);align-items:center;gap:18px}
+.ops-board-primary{display:flex;align-items:center;gap:12px}
+.ops-board-primary .ops-date{flex:1;min-width:0}
+.ops-board-primary .ops-date input{width:100%;min-width:0;height:48px;margin:0;font-size:16px}
+.ops-board-primary>button{min-height:48px;white-space:nowrap}
+.ops-board-controls>.report-switch{width:100%;max-width:none;margin:0}
+.ops-board-controls>.report-switch button{min-width:0;padding:11px 10px;white-space:nowrap}
+.ops-board .ops-summary{margin:18px 0 14px}
+.ops-board-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin:14px 0}
+.ops-board-actions>.ops-job-filters{flex:1;gap:8px;margin:0}
+.ops-board-actions button,.ops-board-tools>summary{min-height:44px}
+.ops-board-tools{position:relative;flex:none}
+.ops-board-tools>summary{padding:12px 10px;font-size:15px;border-radius:12px}
+.ops-board-tools[open]>summary{background:#e8e8e2}
+.ops-tools-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:10;display:grid;gap:8px;width:min(360px,calc(100vw - 36px));padding:16px;background:#fff;border:1px solid #dedede;border-radius:18px;box-shadow:0 12px 32px #19191920}
+.ops-tools-panel>button{text-align:left;font-size:15px}
+.ops-tools-panel .ops-briefing-empty{margin:0;padding:0;border-radius:0;background:transparent}
+.ops-tools-panel .ops-briefing-empty summary{padding:12px 0;min-height:44px}
+.ops-tools-panel .ops-briefing-empty textarea{font-weight:400}
+.ops-board-actions+.ops-job-grid{margin-top:14px}
+@media(max-width:700px){
+ .ops-board-controls{grid-template-columns:1fr;gap:14px}
+ .ops-board-primary{gap:10px}
+ .ops-board-controls>.report-switch button{font-size:15px}
+ .ops-board-actions{gap:6px}
+ .ops-board-actions>.ops-job-filters button{font-size:14px;padding:10px 12px}
+}

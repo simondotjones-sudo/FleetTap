@@ -47,6 +47,9 @@ Object.assign(paths,{
 });
 const icon=k=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[k]||paths.checks}"/></svg>`;
 const tiles=[['Report','Incidents &|safety concerns','report'],['SOPs','Procedures &|instructions','sops'],['Checks','Inspections &|maintenance','checks'],['Faults','Vehicle defects|& repairs','faults'],['Actions','Your tasks &|handover','actions'],['Fleet','Buses, status|& history','fleet']];
+// Opening the app with a saved manager session should start at the garage board.
+// Explicit routes, including the Home button and saved work, keep their destination.
+if(manager(me)&&(!location.hash||location.hash==='#login'))history.replaceState(null,'',location.pathname+location.search+'#garage-today');
 const routeTrail=[];let lastRoute=location.hash.slice(1)||'home',goingBack=false;
 const current=()=>location.hash.slice(1)||'home',rows=k=>scoped(state[k],garage),pill=(label,tone='')=>`<span class="pill ${tone}">${esc(label)}</span>`;
 function notify(text){$('#message').textContent=text;$('#message').classList.add('show');clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('#message').classList.remove('show'),5000);}
