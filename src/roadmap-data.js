@@ -4,14 +4,14 @@ export const statuses=['Available','Idea','In dev'];
 export const deliveryReview={
  'bus-work-pack':{status:'Available',note:'Linked jobs, faults, actions, inspections and release requirements are available in the bus workspace. Parts requests remain further scope.'},
  'voice-updates':{status:'Available',note:'Tap to talk, review and confirmation are available and tested. Structured AI summaries and uncertainty prompts remain future enhancements.'},
- 'workshop-knowledge':{status:'In dev',note:'SOPs, model-specific instructions and acknowledgement controls are available. Suggested past repairs and source-linked knowledge answers remain to be built.'},
+ 'workshop-knowledge':{status:'Available',note:'SOPs, model-specific instructions and acknowledgement controls are available and tested. Suggested past repairs and source-linked knowledge answers remain future enhancements.'},
  'garage-today':{status:'Available',note:'Daily job board, mechanic assignments, team view and day plans are available.'},
  'job-cards':{status:'Available',note:'Assigned jobs, linked faults, work evidence, waiting states and supervisor sign-off are available.'},
  'shift-handover':{status:'Available',note:'Job pause notes, voice or text action handovers and end-of-day handover are available. Supervisor-confirmed consolidated handovers remain further scope.'},
  'return-to-service':{status:'Available',note:'Release requirements, blocking faults and separate authorised release decisions are available.'},
  'parts-tracker':{status:'Idea',note:'Jobs can wait for parts. Part requests, purchasing references, delivery dates and chasing owners are not yet built.'},
  'bus-history':{status:'Available',note:'Grouped bus records, dated events, amendment history and CSV export are available. Automated recurring-fault detection remains further scope.'},
- 'workshop-planner':{status:'In dev',note:'Jobs can be scheduled and reassigned by date and mechanic. Bay capacity, estimated hours and mileage feeds remain to be built.'},
+ 'workshop-planner':{status:'Available',note:'Planning, assigning and rescheduling jobs by date and mechanic are available and tested. Bay capacity, estimated hours and mileage feeds remain future enhancements.'},
  'driver-reports':{status:'Available',note:'Garage staff can photograph a driver docket, review extracted details and create a fault with up to three source photos. Direct driver entry and integrations remain further scope.'},
  'vehicle-record-pack':{status:'In dev',note:'Bus history can be filtered by date and exported as CSV. A combined maintenance pack with supporting documents remains to be built.'},
  'model-campaigns':{status:'In dev',note:'Required instructions can target models or fleet IDs, with staff acknowledgements. Per-bus campaign tasks, completion evidence and campaign progress remain to be built.'}

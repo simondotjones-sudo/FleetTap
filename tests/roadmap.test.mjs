@@ -13,7 +13,7 @@ import {roadmapView,demoBuses} from '../src/roadmap-ui.js';
 test('roadmap validation and demo access',()=>{
  assert.equal(roadmapSeeds.length,13);assert.throws(()=>validateBrief({...roadmapSeeds[0],status:'bogus'}));
  assert.deepEqual(statuses,['Available','Idea','In dev']);
- assert.deepEqual(statuses.map(status=>roadmapSeeds.filter(f=>f.status===status).length),[8,1,4]);
+ assert.deepEqual(statuses.map(status=>roadmapSeeds.filter(f=>f.status===status).length),[10,1,2]);
  for(const role of ['supervisor','mechanic'])assert.match(roadmapView({me:{role},page:'garage-today'}),/access required/);
  for(const role of ['organisation_admin','garage_manager']){assert.match(roadmapView({me:{role},page:'garage-today'}),/Sample data/);assert.match(roadmapView({me:{role},page:'roadmap'}),/Platform Admin access required/);}
  assert.equal(demoBuses.length,6);assert.match(roadmapView({me:{role:'platform_admin'},page:'garage-today'}),/DEMO-101/);
@@ -49,7 +49,7 @@ test('roadmap persists edits and feedback, rejects unauthorised and stale writes
  const reviewed=(await (await call()).json()).features;
  for(const seed of roadmapSeeds){
   const prior=before.find(f=>f.id===seed.id),current=reviewed.find(f=>f.id===seed.id);
-  const reviewedStatus=seed.id==='voice-updates'?'In dev':seed.status;
+  const reviewedStatus=['voice-updates','workshop-knowledge','workshop-planner'].includes(seed.id)?'In dev':seed.status;
   assert.equal(current.status,reviewedStatus,seed.id);
   assert.equal(current.title,prior.data.title);assert.deepEqual(current.feedback,prior.data.feedback);
   assert.equal(current.version,prior.version+(prior.data.status===reviewedStatus?0:1));
@@ -70,5 +70,14 @@ test('roadmap persists edits and feedback, rejects unauthorised and stale writes
   else assert.deepEqual(current,prior,'Only Voice Updates changes');
  }
  await client.pool.query(availableSQL);assert.deepEqual((await (await call()).json()).features,afterVoice,'Availability update is idempotent');
+ const acceptedSQL=await readFile(new URL('../netlify/database/migrations/20261017123000_knowledge_planner_available.sql',import.meta.url),'utf8');
+ await client.pool.query(acceptedSQL);
+ const accepted=(await (await call()).json()).features;
+ for(const current of accepted){
+  const prior=afterVoice.find(x=>x.id===current.id);
+  if(['workshop-knowledge','workshop-planner'].includes(current.id)){assert.equal(current.status,'Available');assert.equal(current.version,prior.version+1);const {status,version,updatedAt,...rest}=current;const {status:oldStatus,version:oldVersion,updatedAt:oldTime,...oldRest}=prior;assert.deepEqual(rest,oldRest);}
+  else assert.deepEqual(current,prior,'Only Knowledge and Planner change');
+ }
+ await client.pool.query(acceptedSQL);assert.deepEqual((await (await call()).json()).features,accepted,'Acceptance update is idempotent');
  }finally{await (await import('../netlify/functions/roadmap.mjs')).closeRoadmapDatabase();await client.pool.end();await (await import('../server/runtime.mjs')).closeDatabase();await local.stop();}
 });
