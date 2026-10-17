@@ -1,5 +1,13 @@
 # FleetTap
 
+## Section completion and question browsing — 1.17.10.26.48
+
+Section cards retain the saved count and replace the “to finish” count with a green border and tick when the section's checks are recorded. Unanswered questions, “Can't complete” results, pending rechecks, unsaved drafts and blocked technical-review items prevent the completion indicator. The indicator describes check completion; faults and bus-release requirements remain separate.
+
+Question pages support left/right touch swipes and Previous/Next arrow buttons within the current section. Browsing never records a result, changes measurements, acknowledges instructions or clears a recheck. Boundaries stop at the first/last available question; blocked tasks remain unavailable. Existing draft steps remain intact and offer Continue entry/Continue recheck when revisited through browsing. Answer controls and entry forms retain their normal explicit save flow. Vertical scrolling and zoom keep native behaviour, and a swipe over an answer tile cannot also click that answer.
+
+Validation: 144 automated tests and the production build pass. Browser checks use real Chromium touch input for swipes, boundary handling and answer-click suppression, plus arrows, vertical scrolling, draft/reload recovery, explicit answering after browsing, locked inspection viewing, and 320/390/1200px layouts. An unchanged SOP database race test failed once, then passed in isolation and in the final full run.
+
 ## Faster repair entry and compact safety guidance — 1.17.10.26.47
 
 “I fixed it” now asks for one fault description, a repair choice (Replaced, Repaired, Adjusted or Other) and a “Recheck passed” confirmation. Other keeps a free-text option for work that needs more detail. The selected repair and explicit recheck confirmation are saved with the authenticated mechanic and time, then sent for supervisor review. Optional photos can be added on this screen; required visual photos and fresh measurements still apply. Failed readings cannot be recorded as a successful repair, and critical holds still require verified closure.
