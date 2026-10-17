@@ -25,7 +25,9 @@
 .navigation-drawer .menu-section+.menu-section{border-top:1px solid #e5e5e1;padding-top:13px}
 .navigation-drawer .menu-section h3{margin:0 0 8px;padding:0 16px;color:#717171;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
 .navigation-drawer .menu-section-links{display:flex;flex-direction:column;gap:3px}
-.navigation-drawer nav button{width:100%;min-height:48px;padding:12px 16px;border-radius:13px;font-size:17px;line-height:1.35}
+.navigation-drawer nav button{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:12px 16px;border-radius:13px;font-size:17px;line-height:1.35}
+.navigation-drawer .menu-icon{width:22px;height:22px;flex:0 0 22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.navigation-drawer nav button>span{min-width:0}
 .navigation-drawer nav button:hover,.navigation-drawer nav button:focus-visible,.navigation-drawer nav button[aria-current=page]{background:#111;color:#ffe500}
 .garage-sample-label{text-align:center;color:#747474;font-size:13px;margin:-10px 0 22px}
 .action-assignment{width:100%;max-width:800px;align-self:center;padding:16px 20px;background:white;border:1px solid #deded6;border-radius:16px}
