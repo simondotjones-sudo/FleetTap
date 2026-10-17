@@ -1,3 +1,4 @@
+import {targetMatches} from './bulletins.js';
 import {isPM3,tasksFor,templateFor} from './templates.js';
 import {taskCopy} from './question-copy.js';
 
@@ -33,5 +34,8 @@ export function downtimeAttribution(state,garage,vehicle,values,old={}){
  if(linked&&questionId&&linked.id!==questionId)throw Error('The PM3 question must match the linked fault.');
  const question=linked||(questionId&&((old.questionId===questionId?old.questionSnapshot:null)||downtimeQuestions(state,garage,vehicle).find(q=>q.id===questionId)))||null;
  if(questionId&&!question)throw Error('Choose an available PM3 question.');
- return {downtimeKind:kind,component,part,faultId,questionId:question?.id||'',questionSnapshot:question};
+ const bulletinId=String(pick('bulletinId')||''),bus=state.vehicles.find(b=>b.garage===garage&&b.id===vehicle),bulletin=(state.activeBulletins||[]).find(x=>x.id===bulletinId&&targetMatches(x,bus));
+ if(bulletinId&&!bulletin&&old.bulletinId!==bulletinId)throw Error('Choose a published TSB applying to this bus.');
+ const bulletinSnapshot=bulletin?{id:bulletin.id,version:bulletin.version,reference:bulletin.reference,title:bulletin.title}:old.bulletinId===bulletinId?old.bulletinSnapshot:null;
+ return {...(bulletinId?{bulletinId,bulletinSnapshot}:old.bulletinId?{bulletinId:'',bulletinSnapshot:null}:{}),downtimeKind:kind,component,part,faultId,questionId:question?.id||'',questionSnapshot:question};
 }

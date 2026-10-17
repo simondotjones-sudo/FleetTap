@@ -1,3 +1,5 @@
+import {publishedBulletins,targetMatches} from './bulletins.js';
+import {completionFor} from './instruction-learning.js';
 import {backRoute} from './navigation.js';
 import {esc} from './api.js';
 import {manager,author} from './roles.js';
@@ -12,6 +14,7 @@ export function controlsView(c){
  const returnTo=new URLSearchParams(c.page.split('?')[1]||'').get('return'),next=returnTo&&/^(inspection|my-jobs|garage-today|checklists|checks)\//.test(returnTo)?returnTo:'my-jobs';
  const due=x=>x.reviewDate&&x.reviewDate<today(),ackFor=x=>acknowledgement(c.state,c.garage,c.me.id,x);
  const scope=x=>{const selected=buses.filter(b=>applies(x,b));return `<details><summary>${x.target==='model'?esc(x.targetModel)+' · ':''}${selected.length} applicable buses</summary><p>${selected.map(b=>esc(b.id)).join(', ')}</p></details>`;};
+ const tsbs=publishedBulletins(c.content).filter(x=>buses.some(b=>targetMatches(x,b,c.state.recallCases)));
  let body='',title='Required instructions';
  if(id==='rechecks'){
   title='Measurement rechecks';
@@ -24,15 +27,18 @@ export function controlsView(c){
  }else if(!id||id==='acknowledged'){
   const list=all.filter(x=>id==='acknowledged'?ackFor(x)&&!due(x):!ackFor(x)||due(x));body=list.map(x=>`<article class="card"><h2>${esc(x.title)}</h2><p>${esc(x.reference)} · ${esc(x.revision)}${due(x)?' · Review overdue':''}</p>${scope(x)}${go('required-instructions/'+x.id,id==='acknowledged'?'Read instruction':'Read & acknowledge')}</article>`).join('')||`<p>${id==='acknowledged'?'No acknowledged instructions yet.':'No instructions waiting for your acknowledgement.'}</p>`;
  }else body='<p>Instruction unavailable.</p>';
+ if(!id||id==='acknowledged')body=tsbs.filter(x=>id==='acknowledged'?completionFor(c.state,c.me.id,x):!completionFor(c.state,c.me.id,x)).map(x=>`<article class="card"><h2>${esc(x.title)}</h2><p>${esc(x.reference)} · TSB</p>${go('tsbs/'+x.id+'?return='+encodeURIComponent(next),id==='acknowledged'?'Read TSB':x.completion==='video_quiz'?'Watch & complete':'Read & acknowledge')}</article>`).join('')+body;
+ if(id==='team')body=go('tsb-team','TSB team completion')+body;
  return `<section class="admin-tools"><h1>${title}</h1><div class="report-switch" aria-label="Instructions view">${go('required-instructions','To read')}${go('required-instructions/acknowledged','Acknowledged')}${manager(c.me)?go('required-instructions/team','Team status'):''}</div>${body}<div class="toolbar">${backRoute(next)}${author(c.me)?go('content/sops','Manage instructions'):''}</div></section>`;
 }
 export function controlsBanner(c){
- const p=c.page.split('/');let bus;
+ const p=c.page.split('?')[0].split('/');let bus;
  if(p[0]==='inspection')bus=c.state.inspections.find(i=>i.id===p[1]&&i.garage===c.garage)?.vehicle;
  if(['my-jobs','garage-today'].includes(p[0]))bus=c.state.jobs?.find(i=>i.id===p[1]&&i.garage===c.garage)?.vehicle;
  if(p[0]==='checklists'&&p[1]==='run')bus=c.state.checklistRuns?.find(i=>i.id===p[2]&&i.garage===c.garage)?.vehicle;
+ if(p[0]==='actions'){const a=c.state.actions.find(a=>a.id===p[1]&&a.garage===c.garage);bus=a?.vehicle||[...c.state.faults,...c.state.reports].find(r=>r.garage===c.garage&&r.id===a?.source)?.vehicle;}
  if(!bus)return '';const list=pendingControls(c.state,c.garage,c.me.id,c.content,bus);
- return list.length?`<aside class="control-stop" role="alert"><strong>Before continuing on ${esc(bus)}</strong>${list.map(x=>go('required-instructions/'+x.id+'?return='+encodeURIComponent(c.page),'Read & acknowledge: '+x.title)).join('')}</aside>`:'';
+ return list.length?`<aside class="control-stop" role="alert"><strong>Before continuing on ${esc(bus)}</strong>${list.map(x=>go((x.isTSB?'tsbs/':'required-instructions/')+x.id+'?return='+encodeURIComponent(c.page),'Read & acknowledge: '+x.title)).join('')}</aside>`:'';
 }
 let busy=false;
 export function setupControls(host){document.addEventListener('submit',async e=>{const f=e.target;if(!f.hasAttribute('data-control-ack'))return;e.preventDefault();if(busy)return;busy=true;const button=f.querySelector('button');button.disabled=true;try{await host.mutation('instruction_ack',{...Object.fromEntries(new FormData(f)),instructionId:f.dataset.controlAck});await host.reload();if(new URLSearchParams(host.context().page.split('?')[1]||'').get('return')==='my-jobs')host.go('my-jobs');else host.render();host.notify('Acknowledgement recorded.');}catch(err){f.querySelector('.form-error').textContent=err.message;if(err.status===409)await host.reload();}finally{busy=false;button.disabled=false;}});}

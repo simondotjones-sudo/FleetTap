@@ -1,3 +1,4 @@
+import {currentDocument,publishedBulletins} from '../../src/bulletins.js';
 import {db,actor,garageFor,endpoint,fail,json,appOrigin,rateLimit,withActorTransaction} from '../../server/runtime.mjs';
 import {canAuthor} from '../../server/security.mjs';
 import {sopPublished} from '../../src/content-model.js';
@@ -9,7 +10,7 @@ export default endpoint(async req=>{
  if(req.method==='GET'){
   const id=p.get('id');if(!/^[a-f0-9-]{36}$/.test(id||''))fail('Document unavailable.',404);
   const sql=db(),[row]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${g.organisation_id}`;
-  const sop=row?.data.sops?.find(x=>x.sourceId===id||(canAuthor(u)&&x.draftRevision?.sourceId===id));
+  const data=row?.data||{},sop=[...(data.sops||[]).flatMap(x=>canAuthor(u)?[x,x.draftRevision].filter(Boolean):[currentDocument(x)].filter(Boolean)),...(data.tsbs||[]).filter(x=>canAuthor(u)||x.status==='Published'),...publishedBulletins(data).flatMap(x=>(x.documents||[]).map(d=>d.snapshot))].find(x=>x.sourceId===id);
   if(!sop||(!canAuthor(u)&&!sopPublished(sop)))fail('Document unavailable.',404);
   const [doc]=await sql`SELECT content FROM sop_documents WHERE id=${id} AND organisation_id=${g.organisation_id} AND sop_id=${sop.id}`;
   if(!doc)fail('Document unavailable.',404);
@@ -31,7 +32,8 @@ export default endpoint(async req=>{
   if(!org)fail('Organisation unavailable.',403);
   const [row]=await sql`SELECT data,version FROM organisation_content WHERE organisation_id=${g.organisation_id} FOR UPDATE`;
   if(!row||row.version!==expected)fail('Content changed. Reload and retry.',409);
-  const sop=row.data.sops?.find(x=>x.id===p.get('sop'));
+  const kind=p.get('kind')==='tsbs'?'tsbs':'sops';
+  const sop=row.data[kind]?.find(x=>x.id===p.get('sop'));
   if(!sop)fail('SOP unavailable.',404);
   if(sopPublished(sop)&&!sop.draftRevision)fail('Save a draft revision before changing its source PDF.',409);
   const target=sop.draftRevision||sop;

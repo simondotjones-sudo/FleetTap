@@ -28,6 +28,7 @@ export function releaseSteps(c,id,a){
   else if(/vehicle faults/.test(text))route='history/'+bus+'/faults';
   else if(/corrective actions/.test(text))route='history/'+bus+'/actions';
   else if(/Vehicle jobs/.test(text)){route='vehicle/'+bus+'/jobs';owner='Assigned mechanic / supervisor';}
+  else if(/Safety recall/.test(text)){route='recalls?bus='+encodeURIComponent(id);label='View recall';owner='Remedy and supervisor verification required';}
   else if(/technical instruction conflict/.test(text)){route='sops/regeneration';label='View source conflict';owner='Technical Office approval required';}
   else if(/rechecks/.test(text)){route=inspection?'inspection/'+inspection.id+'/sections':'checks/'+bus;owner='Mechanic';label='Open rechecks';}
   else if(/checklists/.test(text)){route='checklists';owner='Mechanic / supervisor';}

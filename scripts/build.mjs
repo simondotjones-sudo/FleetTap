@@ -3,7 +3,7 @@ import {FLEETTAP_APP_MAJOR,FLEETTAP_APP_RELEASE_DATE,FLEETTAP_APP_BUILD,FLEETTAP
 if(!Number.isSafeInteger(FLEETTAP_APP_MAJOR)||FLEETTAP_APP_MAJOR<1||!Number.isSafeInteger(FLEETTAP_APP_BUILD)||FLEETTAP_APP_BUILD<1||!/^\d{2}\.\d{2}\.\d{2}$/.test(FLEETTAP_APP_RELEASE_DATE))throw Error('Invalid FleetTap release metadata.');
 await rm('dist',{recursive:true,force:true});
 await mkdir('dist');
-for(const path of ['index.html','offline.html','manifest.webmanifest','workspace.css','fleet.css','admin-tools.css','tablet.css','pwa.css','operations.css','performance.css','assets','src','_headers']) await cp(path,`dist/${path}`,{recursive:true});
+for(const path of ['index.html','offline.html','manifest.webmanifest','workspace.css','fleet.css','admin-tools.css','tablet.css','pwa.css','operations.css','performance.css','bulletins.css','assets','src','_headers']) await cp(path,`dist/${path}`,{recursive:true});
 // Stamp both entry assets and imported modules so each release has fresh URLs.
 for(const page of ['index.html','offline.html']){
  const html=await readFile(`dist/${page}`,'utf8');

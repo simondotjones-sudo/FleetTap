@@ -1,3 +1,5 @@
+import {currentDocument,bulletinRequired,publishedBulletins,targetMatches,bulletinReviewOverdue} from './bulletins.js';
+import {completionFor} from './instruction-learning.js';
 import {vehicleModelType,fleetModel} from './fleet-models.js';
 import {manager,workerName} from './roles.js';
 import {today} from './scheduling.js';
@@ -15,16 +17,16 @@ export function controlFields(values,old={}){
  if(required&&kind==='toolbox'&&!video)throw Error('Add the toolbox talk video link.');
  return {required,target,targetModel:model,targetFleets:fleets,controlKind:kind,video};
 }
-export const applies=(x,b)=>x.required&&x.status==='Published'&&(x.target==='all'||x.target==='model'&&vehicleModelType(b)===x.targetModel||x.target==='fleet'&&[b.id,...(b.audit||[]).map(a=>a.previous?.id)].some(id=>x.targetFleets?.includes(id)));
-export function requiredControls(content,b){return (content.sops||[]).filter(x=>applies(x,b));}
-export function acknowledgement(s,g,u,x){return (s.instructionAcks||[]).find(a=>a.garage===g&&a.userId===u&&a.instructionId===x.id&&a.version===x.version);}
+export const applies=(x,b,cases=[])=>x.isTSB?targetMatches(x,b,cases):x.required&&x.status==='Published'&&(x.target==='all'||x.target==='model'&&vehicleModelType(b)===x.targetModel||x.target==='fleet'&&[b.id,...(b.audit||[]).map(a=>a.previous?.id)].some(id=>x.targetFleets?.includes(id)));
+export function requiredControls(content,b){return (content.sops||[]).map(x=>currentDocument(x)).filter(x=>x&&applies(x,b));}
+export function acknowledgement(s,g,u,x){return [...(s.instructionAcks||[]),...(s.organisationAcks||[])].find(a=>(a.organisationWide||a.garage===g)&&a.userId===u&&a.instructionId===x.id&&a.version===x.version);}
 export function pendingControls(s,g,user,content,vehicle){
  const b=s.vehicles.find(b=>b.id===vehicle&&b.garage===g);if(!b)throw Error('Bus unavailable in this garage.');
- return requiredControls(content,b).filter(x=>x.reviewDate&&x.reviewDate<today()||!acknowledgement(s,g,user,x));
+ return [...requiredControls(content,b).filter(x=>x.reviewDate&&x.reviewDate<today()||!acknowledgement(s,g,user,x)),...publishedBulletins(content).filter(x=>bulletinRequired(x,content,b,today(),s.recallCases)&&(bulletinReviewOverdue(x)||!completionFor(s,user,x))).map(x=>({...x,isTSB:true}))];
 }
 export function requireControls(s,g,u,content,vehicle){if(!vehicle)return;const pending=pendingControls(s,g,u.id,content,vehicle);if(pending.length)throw Error('Work blocked: read and acknowledge current instructions in Required instructions. '+pending.map(x=>x.title).join('; '));}
 export function acknowledgeControl(s,g,u,content,v){
- const x=content.sops?.find(x=>x.id===v.instructionId&&x.required&&x.status==='Published');
+ const x=(content.sops||[]).map(d=>currentDocument(d)).find(x=>x&&x.id===v.instructionId&&x.required&&x.status==='Published');
  if(!x||x.version!==Number(v.version))throw Error('Instruction changed. Reload and read the current version.');
  if(x.reviewDate&&x.reviewDate<today())throw Error('This instruction is overdue for review. Contact your Organisation Admin.');
  if(!s.vehicles.some(b=>b.garage===g&&applies(x,b)))throw Error('Instruction does not apply to this garage fleet.');
