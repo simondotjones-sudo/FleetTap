@@ -32,7 +32,7 @@ test('compact Add bus retains the form after failure and prevents duplicate subm
  const c={state:seed(),garage:'demo-north',me:{role:'garage_manager'},page:'fleet/new'};let fail=true,calls=0,release;
  const h=harness(c,async(action,values)=>{assert.equal(action,'vehicle');calls++;if(fail)throw Error('Connection lost');await new Promise(r=>release=r);return saveVehicle(c.state,c.garage,values);});
  try{
-  const html=fleetFlowView(c);assert.match(html,/Fleet number/);assert.match(html,/Inspection planning/);assert.doesNotMatch(html,/Ready to add this bus|Step [0-9]/);
+  const html=fleetFlowView(c);assert.match(html,/Fleet number/);assert.doesNotMatch(html,/name="due"/);assert.match(html,/Organisation Admin/);assert.doesNotMatch(html,/Ready to add this bus|Step [0-9]/);
   await h.submit();assert.equal(h.error.textContent,'Connection lost');assert.equal(c.page,'fleet/new');assert.equal(fleetBusy(),false);
   fail=false;const pending=h.submit();assert.equal(fleetBusy(),true);assert.equal(h.button.disabled,true);await h.submit();assert.equal(calls,2);release();await pending;
   const saved=c.state.vehicles.find(v=>v.id==='DEMO-901');assert.equal(saved.status,'Awaiting inspection');assert.equal(saved.warranty,'Unknown');assert.equal(saved.due,'');assert.deepEqual(saved.history,[]);assert.equal(c.page,'vehicle/DEMO-901');

@@ -1,3 +1,5 @@
+import {manageFleet} from '../../server/fleet-management.mjs';
+import {vehicleModelType,modelTypeForSave} from '../../src/fleet-models.js';
 import {releaseCommand,serviceHistoryCommand,refreshReleaseHolds,withReleaseStatus,visibleRelease} from '../../src/bus-release.js';
 import {acknowledgeControl,requireControls,visibleControls} from '../../src/active-controls.js';
 import {performanceCommand,visiblePerformance} from '../../src/performance-model.js';
@@ -14,7 +16,7 @@ import {returnInspection,startInspection,recordRecheck,saveAnswer,submitInspecti
 import {editTemplate} from '../../src/templates.js';
 import {editVehicle,manageInspection} from '../../src/inspection-admin.js';
 import {saveSchedule} from '../../src/scheduling.js';
-const visible=(s,u,g)=>visibleRelease(visibleControls(visiblePerformance(visibleOperations(visibleActionState(withReleaseStatus(s,g),u),u),u),u),u);
+const visible=(raw,u,g)=>{const s=canManage(u)?raw:{...raw,vehicleTransferArchive:[],attachmentOrigins:undefined};return visibleRelease(visibleControls(visiblePerformance(visibleOperations(visibleActionState(withReleaseStatus(s,g),u),u),u),u),u);};
 export default endpoint(async(req)=>{
  const u=await actor(req),sql=db();
  if(req.method==='GET'){
@@ -27,6 +29,7 @@ export default endpoint(async(req)=>{
  }
  const b=await body(req);const g=await garageFor(u,b.garage);
  if(!Number.isInteger(b.version)||b.version<0)fail('Reload the garage before saving.',409);
+ if(b.action==='vehicle_transfer'||(b.action==='schedule'&&b.values?.scope==='model')){const changed=await manageFleet(u,b);return json({...changed,state:visible(changed.state,u,b.garage)});}
  const [r]=await sql`SELECT data,version FROM garage_records WHERE garage_id=${b.garage}`;
  if(b.action==='record'&&b.values?.requestId){if(!/^[a-f0-9-]{36}$/.test(b.values.requestId))fail('Invalid report request.');const prior=r&&savedRecordRequest(r.data,b.kind,b.garage,u.id,b.values.requestId);if(prior)return json({state:visible(r.data,u,b.garage),version:r.version,result:prior});}
  if(!r||r.version!==b.version)fail('Another person saved changes. Refresh the garage and retry your entry.',409);
@@ -67,11 +70,11 @@ export default endpoint(async(req)=>{
   case 'action_return':if(!canReview(u))fail('Supervisor access required.',403);result=returnAction(state,b.garage,b.id,v,worker);break;
   case 'close_record':if(!canReview(u))fail('Supervisor access required.',403);result=closeRecord(state,b.garage,b.kind,b.id,v,worker);break;
   case 'checklist_start':case 'checklist_answer':case 'checklist_submit':case 'checklist_signoff':case 'checklist_return':{if(['checklist_signoff','checklist_return'].includes(b.action)&&!canReview(u))fail('Supervisor access required.',403);const [content]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${g.organisation_id}`;result=checklistCommand(state,b.garage,b.action,v,b.id,content?.data||{},worker);break;}
-  case 'vehicle_edit':if(!canManage(u))fail('Administrator access required.',403);result=editVehicle(state,b.garage,b.id,v,worker);break;
+  case 'vehicle_edit':if(!canManage(u))fail('Administrator access required.',403);if(u.role!=='organisation_admin'){const bus=state.vehicles.find(x=>x.id===b.id&&x.garage===b.garage);if(bus&&modelTypeForSave({...v,id:v.id||b.id,modelType:v.modelType===undefined?vehicleModelType(bus):v.modelType})!==vehicleModelType(bus))fail('Only an Organisation Admin can change the bus model.',403);}result=editVehicle(state,b.garage,b.id,v,worker);break;
   case 'inspection_manage':if(!(v.operation==='complete'?canReview(u):canManage(u)))fail('Administrator access required.',403);result=manageInspection(state,b.garage,b.id,v,worker);break;
   case 'template_edit':if(!canAuthor(u))fail('Administrator access required.',403);result=editTemplate(state,v,worker);break;
-  case 'schedule':if(!canManage(u))fail('Administrator access required.',403);result=saveSchedule(state,b.garage,v,worker);break;
-  case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);result=saveVehicle(state,b.garage,v);break;
+  case 'schedule':if(u.role!=='organisation_admin')fail('Organisation Admin access required.',403);result=saveSchedule(state,b.garage,v,worker);break;
+  case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);if(u.role!=='organisation_admin'&&v.due)fail('Only an Organisation Admin can set an inspection due date.',403);result=saveVehicle(state,b.garage,v);break;
   case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos,requestId:v.requestId||null});break;
   case 'start':result=startInspection(state,v.vehicle,b.garage,worker);break;
   case 'answer':result=saveAnswer(state,b.id,b.garage,b.item,{result:v.result,notes:String(v.notes||'').slice(0,4000),worker,recheckConfirmed:v.recheckConfirmed===true,recheckNote:String(v.recheckNote||'').slice(0,2000),readings:Array.isArray(v.readings)?v.readings.map(x=>String(x).slice(0,300)):[]});break;

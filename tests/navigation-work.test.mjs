@@ -21,7 +21,7 @@ test('menu offers each role reachable work and management sections without home 
   const hub=checksFlowView({state:seed(),garage:'demo-north',me,page:'checks'});
   assert.match(hub,/data-go="bus-checks"/);assert.match(hub,/data-go="checklists"/);assert.doesNotMatch(hub,/data-go="reviews"/);
  }
- assert.match(menuView({role:'garage_manager'},'garage-actions/123'),/data-go="manage" aria-current="page"/);
+ assert.match(menuView({role:'garage_manager'},'garage-actions/123'),/data-go="garage-today" aria-current="page"/);
  assert.match(menuView({role:'supervisor'},'reviews/actions/123'),/data-go="reviews" aria-current="page"/);
 });
 

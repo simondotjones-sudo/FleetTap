@@ -34,8 +34,8 @@ let assignees=boot.assignees||[];
 let content=boot.content||{sops:[],checklists:[]},contentVersion=boot.contentVersion||0,organisation=boot.organisation||'';
 let garage=boot.garage||'',overlay='',profile=false,mode='list',adminData=null;
 async function reloadWorkspace(selected=garage){let data;try{data=await api('workspace',null,selected?'?garage='+encodeURIComponent(selected):'');}catch(e){if(e.status!==403||!selected)throw e;data=await api('workspace');}state=data.state||{schema:1,vehicles:[],reports:[],faults:[],actions:[],inspections:[]};garages=data.garages;me=data.user;version=data.version;garage=data.garage||'';content=data.content||{sops:[],checklists:[]};contentVersion=data.contentVersion||0;organisation=data.organisation||'';assignees=data.assignees||[];}
-async function mutation(action,values={},extra={}){const data=await api('workspace',{action,values,...extra,garage,version});state=data.state;version=data.version;return data.result;}
-async function loadAdmin(){adminData=await api('admin');if(current()==='admin')render();}
+async function mutation(action,values={},extra={}){const data=await api('workspace',{action,values,...extra,garage,version,contentVersion});state=data.state;version=data.version;if(data.contentVersion!==undefined)contentVersion=data.contentVersion;return data.result;}
+async function loadAdmin(){adminData=await api('admin');if(current().split('/')[0]==='admin')render();}
 const paths={report:'M12 5v14M5 12h14',sops:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',checks:'M5 3h14v18H5zM8 11l2 2 5-5',faults:'M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 4-4-4z',actions:'M9 5h11M9 12h11M9 19h11M3 5l1 1 2-2M3 12l1 1 2-2M3 19l1 1 2-2',fleet:'M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2M8 15h1M15 15h1',back:'M19 12H5 M10 7l-5 5 5 5',home:'M3 10l9-7 9 7v10H3z M9 20v-7h6v7',menu:'M4 6h16 M4 12h16 M4 18h16',spark:'M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z',bell:'M5 17h14l-2-3V8a5 5 0 0 0-10 0v6z M10 21h4',close:'M6 6l12 12 M18 6L6 18'};
 Object.assign(paths,{
  refresh:'M20 7v5h-5M4 17v-5h5M5.5 7a7 7 0 0 1 11.6-2L20 8M4 16l2.9 3A7 7 0 0 0 18.5 17',
@@ -53,7 +53,7 @@ if(manager(me)&&(!location.hash||location.hash==='#login'))history.replaceState(
 const routeTrail=[];let lastRoute=location.hash.slice(1)||'home',goingBack=false;
 const current=()=>location.hash.slice(1)||'home',rows=k=>scoped(state[k],garage),pill=(label,tone='')=>`<span class="pill ${tone}">${esc(label)}</span>`;
 function notify(text){$('#message').textContent=text;$('#message').classList.add('show');clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('#message').classList.remove('show'),5000);}
-function go(page){stopDictation();overlay='';profile=false;mode='list';if(page==='admin'&&manager(me))loadAdmin().catch(e=>notify(e.message));if(current()===page)render();else location.hash=page;}
+function go(page){stopDictation();overlay='';profile=false;mode='list';if(page.split('/')[0]==='admin'&&manager(me))loadAdmin().catch(e=>notify(e.message));if(current()===page)render();else location.hash=page;}
 function setProfile(open,restoreFocus=false){
  profile=open;
  const panel=$('#profile-panel'),trigger=$('#profile-trigger');
@@ -80,11 +80,11 @@ function render(){
  $('#account').innerHTML=`${count?`<button class="topbar-bell" data-go="actions" aria-label="My Actions, ${count} outstanding">${icon('bell')}<span class="action-count">${count}</span></button>`:''}<button class="avatar" id="profile-trigger" aria-label="Profile and garage" aria-controls="profile-panel" aria-expanded="${profile}">${esc(me.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</button><div id="profile-panel" class="profile-panel" ${profile?'':'hidden'}><h2>${esc(me.name)}</h2><p class="help">${esc(me.email||me.employee_id||'')} · ${esc(roleLabel(me.role,me.role_names))}</p><label>Garage<select id="garage-select">${garages.map(g=>`<option value="${g.id}" ${garage===g.id?'selected':''}>${esc(g.organisation_name+' · '+g.name)}</option>`).join('')}</select></label><button class="secondary" type="button" data-pwa-install>${icon('install')}Install FleetTap</button><button class="secondary" id="logout">${icon('logout')}Sign out</button><span class="profile-version">FleetTap Version ${esc(FLEETTAP_APP_VERSION)}</span></div>`;
  const views={password:()=>`<form id="password-form" class="card login"><h1>Change password</h1><label>Current password<input type="password" name="current_password" autocomplete="current-password" required maxlength="128"></label><label>New password<input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128"></label><label>Confirm new password<input type="password" name="confirm" autocomplete="new-password" required minlength="12" maxlength="128"></label><button>Save and sign out</button></form>`,admin:()=>adminView(me,adminData),home,report:()=>reports('reports'),faults:()=>reports('faults'),fleet,sops,checks,actions};
  const parts=page.split('/');
- $('#workspace').innerHTML=controlsBanner(tabletContext())+(busReleaseRoute(page)?busReleaseView(tabletContext()):parts[0]==='required-instructions'?controlsView(tabletContext()):performanceRoute(page)?performanceView(tabletContext()):operationsRoute(page)?operationsView(tabletContext()):roadmapRoute(page)?roadmapView(tabletContext()):['content','org-sop','checklists'].includes(parts[0])?contentView(tabletContext()):parts[0]==='reviews'?reviewView(tabletContext()):parts[0]==='records'?managerRecordsView(tabletContext()):adminRoute(page)?adminToolsView(tabletContext()):isFleetRoute(page)?fleet():isChecksRoute(page)?checks():isActionsRoute(page)?actions():parts[0]==='sops'?sops():parts[0]==='start'?tabletView(tabletContext()):parts[0]==='inspection'?tabletView(tabletContext()):parts[0]==='defect'?reports('faults'):(views[page]||home)());
+ $('#workspace').innerHTML=controlsBanner(tabletContext())+(parts[0]==='admin'?adminView(me,adminData,page):busReleaseRoute(page)?busReleaseView(tabletContext()):parts[0]==='required-instructions'?controlsView(tabletContext()):performanceRoute(page)?performanceView(tabletContext()):operationsRoute(page)?operationsView(tabletContext()):roadmapRoute(page)?roadmapView(tabletContext()):['content','org-sop','checklists'].includes(parts[0])?contentView(tabletContext()):parts[0]==='reviews'?reviewView(tabletContext()):parts[0]==='records'?managerRecordsView(tabletContext()):adminRoute(page)?adminToolsView(tabletContext()):isFleetRoute(page)?fleet():isChecksRoute(page)?checks():isActionsRoute(page)?actions():parts[0]==='sops'?sops():parts[0]==='start'?tabletView(tabletContext()):parts[0]==='inspection'?tabletView(tabletContext()):parts[0]==='defect'?reports('faults'):(views[page]||home)());
 
  preparePageNavigation($('#workspace'));
  restoreFormDrafts();
- if(page==='admin')syncUserScope(adminData,me);
+ if(page.split('/')[0]==='admin')syncUserScope(adminData,me);
  renderNavigation();
 }
 function renderNavigation(){
@@ -118,7 +118,7 @@ document.addEventListener('change',async e=>{if(e.target.name==='photos')preview
 document.addEventListener('input',e=>{if(e.target.id==='sop-search'){const q=e.target.value.toLowerCase();document.querySelectorAll('[data-sop-search]').forEach(b=>b.hidden=!b.dataset.sopSearch.includes(q));}if(e.target.id==='fleet-search'){document.querySelectorAll('[data-search]').forEach(el=>el.hidden=!el.dataset.search.includes(e.target.value.toLowerCase()));const hint=$('#search-empty');if(hint)hint.hidden=!!document.querySelector('[data-search]:not([hidden])');}});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(profile){setProfile(false,true);return;}if(overlay){overlay='';renderNavigation();}});
 document.addEventListener('submit',async e=>{
- const form=e.target;if(form.hasAttribute('data-fleet-create')||form.dataset.releaseForm||form.dataset.timelineFilter||form.hasAttribute('data-control-ack')||form.dataset.performanceForm||form.dataset.operationForm||form.id==='auth-form'||form.dataset.roadmapForm||form.dataset.adminForm||form.dataset.accessForm||form.dataset.contentForm||form.hasAttribute('data-sop-upload')||form.hasAttribute('data-review-form')||form.hasAttribute('data-action-assign'))return;e.preventDefault();const values=Object.fromEntries(new FormData(form)),button=form.querySelector('button[type=submit],button:not([type])');if(button)button.disabled=true;
+ const form=e.target;if(form.hasAttribute('data-fleet-create')||form.hasAttribute('data-fleet-transfer')||form.dataset.releaseForm||form.dataset.timelineFilter||form.hasAttribute('data-control-ack')||form.dataset.performanceForm||form.dataset.operationForm||form.id==='auth-form'||form.dataset.roadmapForm||form.dataset.adminForm||form.dataset.accessForm||form.dataset.contentForm||form.hasAttribute('data-sop-upload')||form.hasAttribute('data-review-form')||form.hasAttribute('data-action-assign'))return;e.preventDefault();const values=Object.fromEntries(new FormData(form)),button=form.querySelector('button[type=submit],button:not([type])');if(button)button.disabled=true;
  try{
   if(form.id==='password-form'){if(values.password!==values.confirm)throw Error('Passwords do not match.');await api('auth',{action:'change_password',...values});location.hash='login';location.reload();return;}
   if(['user-form','organisation-form','garage-form'].includes(form.id)){
@@ -140,7 +140,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('button');
  if(el.id==='copy-link'){await navigator.clipboard.writeText($('#activation-link').value);notify('Link copied.');}
  if(el.dataset.resetUser||el.dataset.activeUser){el.disabled=true;const result=await api('admin',el.dataset.resetUser?{action:'reset_user',user_id:el.dataset.resetUser}:{action:'set_active',user_id:el.dataset.activeUser,active:el.dataset.active==='true'});adminData=await api('admin');render();if(result.link)showLink(result.link);notify('Account updated.');}
  }catch(error){notify(error.message);}finally{el.disabled=false;}});
-window.addEventListener('hashchange',()=>{if(!goingBack&&lastRoute!==current())routeTrail.push(lastRoute);goingBack=false;lastRoute=current();mode='list';profile=false;overlay='';render();window.scrollTo(0,0);if(current()==='admin'&&manager(me)&&!adminData)loadAdmin().catch(e=>notify(e.message));});
+window.addEventListener('hashchange',()=>{if(!goingBack&&lastRoute!==current())routeTrail.push(lastRoute);goingBack=false;lastRoute=current();mode='list';profile=false;overlay='';render();window.scrollTo(0,0);if(current().split('/')[0]==='admin'&&manager(me)&&!adminData)loadAdmin().catch(e=>notify(e.message));});
 setDraftUser(me.id);setupFormDrafts(tabletContext);
 window.addEventListener('preserve-work',()=>{try{sessionStorage.setItem('fleettap-resume',JSON.stringify({user:me.id,page:current()}));}catch{}});
 setupBusRelease({context:tabletContext,render,go,notify,mutation,reload:reloadWorkspace});
@@ -158,4 +158,4 @@ setupFleet({context:tabletContext,render,go,mutation,reload:reloadWorkspace,noti
 setupActions({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
 setupReportFlow({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify,records:kind=>go('records/'+kind)});
 setupTablet({context:tabletContext,render,go,mutation,reload:reloadWorkspace,notify});
-if(current()==='admin'&&manager(me))await loadAdmin();render();
+if(current().split('/')[0]==='admin'&&manager(me))await loadAdmin();render();

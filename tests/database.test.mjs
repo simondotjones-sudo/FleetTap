@@ -25,15 +25,15 @@ test('isolated Netlify Database: migrations, login, role/garage checks, CAS, pro
   async function call(fn,body,cookie='',query='',extra={}){const r=await fn(new Request(origin+'/.netlify/functions/test'+query,{method:body?'POST':'GET',headers:{origin,'content-type':'application/json',cookie,...extra},body:body?JSON.stringify(body):undefined}),functionContext);return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
   const admin=await call(auth,{action:'login',email:'admin@test.invalid',password});assert.equal(admin.status,200);const staff=await call(auth,{action:'login',email:'staff@test.invalid',password});assert.equal(staff.status,200);
   const orgAdmin=await call(auth,{action:'login',email:'org@test.invalid',password});assert.equal(orgAdmin.status,200);
-  let version=0;
-  const write=async(action,values={},extra={},cookie=admin.cookie)=>{const r=await call(workspace,{action,garage:g.id,version,values,...extra},cookie);if(r.status===200)version=r.data.version;return r;};
+  let version=0,contentVersion=0;
+  const write=async(action,values={},extra={},cookie=admin.cookie)=>{const r=await call(workspace,{action,garage:g.id,version,contentVersion,values,...extra},cookie);if(r.status===200){version=r.data.version;contentVersion=r.data.contentVersion??contentVersion;}return r;};
   assert.equal((await call(workspace)).status,401);
   assert.equal((await call(workspace,null,staff.cookie,'?garage='+other.id)).status,403);
   assert.equal((await write('vehicle',{id:'BUS-1',model:'SG271+'})).status,200);
   for(const action of ['vehicle_edit','inspection_manage','template_edit','schedule'])assert.equal((await write(action,{}, {},staff.cookie)).status,403);
   assert.equal((await write('vehicle_edit',{id:'BUS-2',name:'Test bus',model:'SG271+',registration:'TEST'},{id:'BUS-1'})).status,200);
-  assert.equal((await write('schedule',{vehicle:'BUS-2',interval:1,unit:'months',firstDue:'2026-10-31'})).status,200);
-  assert.equal((await write('schedule',{scope:'model',modelType:'SG',interval:1,unit:'months',basis:'history',firstDue:'2026-10-31',replaceOverrides:true})).status,200);
+  assert.equal((await write('schedule',{vehicle:'BUS-2',interval:1,unit:'months',firstDue:'2026-10-31'},{},orgAdmin.cookie)).status,200);
+  assert.equal((await write('schedule',{scope:'model',modelType:'SG',interval:1,unit:'months',basis:'history',firstDue:'2026-10-31',replaceOverrides:true},{},orgAdmin.cookie)).status,200);
   const modelRead=await call(workspace,null,admin.cookie);
   assert.equal(modelRead.data.state.modelSchedules[0].modelType,'SG');
   assert.ok(modelRead.data.state.schedules[0].supersededAt);

@@ -1,3 +1,4 @@
+import {attachmentGarage} from '../../server/attachment-access.mjs';
 import {db,actor,garageFor,endpoint,fail,json,appOrigin,rateLimit} from '../../server/runtime.mjs';
 import {canManage,canAuthor} from '../../server/security.mjs';
 import {templateFor} from '../../src/templates.js';
@@ -12,7 +13,8 @@ export default endpoint(async req=>{
    const [row]=await sql`SELECT data FROM garage_records WHERE garage_id=${garage}`;
    if(!row||templateFor(row.data).sourceId!==id)fail('Document unavailable.',404);
   }
-  const [doc]=await sql`SELECT content FROM inspection_documents WHERE id=${id} AND garage_id=${garage}`;
+  const origin=await attachmentGarage(u,garage,id,'documents');
+  const [doc]=await sql`SELECT content FROM inspection_documents WHERE id=${id} AND garage_id=${origin}`;
   if(!doc)fail('Document unavailable.',404);
   return new Response(Buffer.from(doc.content,'base64'),{headers:{'Content-Type':'application/pdf','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline; filename="inspection-source.pdf"','Content-Security-Policy':"sandbox; default-src 'none'"}});
  }

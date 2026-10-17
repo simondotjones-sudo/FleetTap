@@ -12,7 +12,7 @@ test('role screens enforce UI boundaries and show configurable escaped role labe
  const state=seed(),data={organisations:[{id:'o',name:'Demo',active:true,role_names:{mechanic:'Technician <custom>'},login_code:'ORG'}],garages:[{id:'demo-north',organisation_id:'o',name:'North'}],users:[{id:'staff',name:'Staff',role:'mechanic',employee_id:'EMP1',garage_id:'demo-north',organisation_id:'o',active:true}]};
  const c={state,garage:'demo-north',organisation:'o',content:{sops:[],checklists:[]},page:'manage'};
  for(const role of roleKeys){c.me={id:role,role,organisation_id:'o',garage_id:'demo-north'};const html=adminView(c.me,data);
-  if(['supervisor','mechanic'].includes(role)){assert.match(html,/Administrator access required/);assert.match(adminToolsView(c),/Administrator access required/);}else {assert.match(html,/Technician &lt;custom&gt;/);assert.match(html,/Staff registration/);}
+  if(['supervisor','mechanic'].includes(role)){assert.match(html,/Administrator access required/);assert.match(adminToolsView(c),/Administrator access required/);}else {assert.match(html,/Technician &lt;custom&gt;/);assert.match(html,/Garages & staff registration/);}
   c.page='reviews';assert.equal(reviewView(c).includes('Supervisor access required'),role==='mechanic');
   c.page='content/sops';assert.equal(contentView(c).includes('Organisation Admin access required'),!['platform_admin','organisation_admin'].includes(role));c.page='manage';
  }

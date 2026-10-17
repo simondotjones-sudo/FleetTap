@@ -168,7 +168,7 @@ test('five roles: isolated database registration, permissions, tenant boundaries
   assert.equal((await write('start',{vehicle:'BUS-1'}, {},'mechanic')).status,400);
   // The direct inspection action must enforce the same controls and commit job + inspection together.
   assert.equal((await write('vehicle',{id:'DIRECT-1',model:'Synthetic direct inspection'})).status,200);
-  assert.equal((await write('schedule',{vehicle:'DIRECT-1',interval:4,unit:'weeks',firstDue:jobValues.date})).status,200);
+  assert.equal((await write('schedule',{vehicle:'DIRECT-1',interval:4,unit:'weeks',firstDue:jobValues.date},{},'organisation_admin')).status,200);
   const directJob=await write('job_create',{...jobValues,vehicle:'DIRECT-1',type:'Scheduled inspection',title:'Direct inspection'});assert.equal(directJob.status,200,JSON.stringify(directJob.data));const directId=directJob.data.result.id;
   const blockedVersion=version,blocked=await write('job_checks',{}, {id:directId},'mechanic');assert.equal(blocked.status,400);assert.match(blocked.data.error,/Work blocked/);assert.equal(version,blockedVersion);
   const blockedState=(await call(workspace,null,cookies.mechanic,'?garage='+garage.id)).data.state;assert.equal(blockedState.jobs.find(j=>j.id===directId).status,'Assigned');assert.equal(blockedState.inspections.some(i=>i.vehicle==='DIRECT-1'),false);

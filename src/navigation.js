@@ -37,6 +37,6 @@ export function menuSections(user){
 }
 export function menuView(user,page){
  const current=page.split('/')[0];
- const managed=['manage','garage-actions','admin','schedules','submitted-reports','inspection-records','inspection-admin','template-admin','bus-edit','content','org-sop',...(manager(user)?['reviews']:[])];
- return menuSections(user).map(({title,items},i)=>`<section class="menu-section" aria-labelledby="menu-section-${i}"><h3 id="menu-section-${i}">${esc(title)}</h3><div class="menu-section-links">${items.map(([route,label])=>`<button type="button" data-go="${route}"${(route==='manage'?managed.includes(current):route==='my-jobs/records'?page==='my-jobs/records':route==='my-jobs'?current==='my-jobs'&&page!=='my-jobs/records':route===current)?' aria-current="page"':''}>${menuIcon(route)}<span>${esc(label)}</span></button>`).join('')}</div></section>`).join('');
+ const managed=['manage','admin','submitted-reports','inspection-records','inspection-admin','template-admin','content','org-sop'];
+ return menuSections(user).map(({title,items},i)=>`<section class="menu-section" aria-labelledby="menu-section-${i}"><h3 id="menu-section-${i}">${esc(title)}</h3><div class="menu-section-links">${items.map(([route,label])=>`<button type="button" data-go="${route}"${(route==='manage'?managed.includes(current):route==='garage-today'?['garage-today','garage-actions',...(manager(user)?['reviews']:[])].includes(current):route==='fleet'?['fleet','schedules','bus-edit'].includes(current):route==='my-jobs/records'?page==='my-jobs/records':route==='my-jobs'?current==='my-jobs'&&page!=='my-jobs/records':route===current)?' aria-current="page"':''}>${menuIcon(route)}<span>${esc(label)}</span></button>`).join('')}</div></section>`).join('');
 }

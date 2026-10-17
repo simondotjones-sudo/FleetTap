@@ -34,7 +34,11 @@ export default endpoint(async(req)=>{
  if(b.action==='garage'){
   if(!['platform_admin','organisation_admin'].includes(u.role))fail('Organisation Admin access required.',403);const o=await orgFor(b.organisation_id);if(!o.active)fail('Restore this organisation first.');
   const name=clean(b.name);if(!name||name.length>120)fail('Enter a garage name.');
-  await sql`WITH created AS (INSERT INTO garages(name,organisation_id) VALUES(${name},${o.id}) RETURNING id), records AS (INSERT INTO garage_records(garage_id) SELECT id FROM created) INSERT INTO audit_events(actor_id,action,target) SELECT ${u.id},'garage_created',id::text FROM created`;return json({ok:true});
+  const [garage]=await sql`INSERT INTO garages(name,organisation_id) VALUES(${name},${o.id}) RETURNING id`;
+  const [content]=await sql`SELECT data FROM organisation_content WHERE organisation_id=${o.id}`;
+  const state={schema:1,vehicles:[],reports:[],faults:[],actions:[],inspections:[],modelSchedules:(content?.data?.modelSchedules||[]).map(s=>({...s,garage:garage.id,organisationId:o.id}))};
+  await sql`INSERT INTO garage_records(garage_id,data) VALUES(${garage.id},${JSON.stringify(state)}::jsonb)`;
+  await sql`INSERT INTO audit_events(actor_id,action,target) VALUES(${u.id},'garage_created',${garage.id})`;return json({ok:true});
  }
  if(b.action==='registration_code'){
   const g=await garageFor(u,b.garage_id);

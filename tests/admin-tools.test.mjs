@@ -53,7 +53,7 @@ test('amend/delete/restore preserve evidence, keep faults open and do not comple
  submitInspection(s,i.id,garage,'Corrected notes');assert.equal(s.actions.length,count);
  manage(s,i,'delete');assert.equal(i.status,'Deleted');assert.throws(()=>saveAnswer(s,i.id,garage,'1-2',{result:'OK',worker}));assert.equal(s.faults[0].status,'Open');
  const c={state:s,garage,me:{role:'garage_manager'},page:'history/DEMO-271/checks'};assert.doesNotMatch(fleetFlowView(c),new RegExp(i.id));
- c.page='manage';assert.match(adminToolsView(c),/Deleted inspections/);
+ c.page='manage/records';assert.match(adminToolsView(c),/Deleted inspections/);
  manage(s,i,'restore');assert.equal(i.status,'Awaiting review');assert.ok(!i.deletedAt);
 });
 test('schedule dates clamp calendar months and handle leap years, due boundaries and status changes',()=>{

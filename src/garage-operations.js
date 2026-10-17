@@ -55,17 +55,17 @@ export function operationsCommand(s,g,u,action,v={},id='',assignee=null,now=new 
  if(action==='job_plan'){
   requireThat(manager(u),'Manager access required.');requireThat(['Assigned','Unassigned','Waiting'].includes(j.status),'Pause work before changing its assignment or schedule.');requireThat(validDate(v.date),'Choose a valid date.');requireThat(!v.time||/^([01]\d|2[0-3]):[0-5]\d$/.test(v.time),'Choose a valid time.');
   audit(j,'Plan changed',{previous:{assigneeId:j.assigneeId,date:j.date,time:j.time},assigneeId:assignee?.id||null,date:v.date,time:v.time||''});
-  j.assigneeId=assignee?.id||null;j.assigneeName=assignee?.name||'';j.date=v.date;j.time=v.time||'';j.status=assignee?'Assigned':'Unassigned';j.waitingReason='';return j;
+  j.assigneeId=assignee?.id||null;j.assigneeName=assignee?.name||'';j.date=v.date;j.time=v.time||'';j.status=assignee?'Assigned':'Unassigned';j.waitingReason='';delete j.transferReview;return j;
  }
  if(action==='job_cancel'){
-  requireThat(manager(u)&&['Assigned','Unassigned','Waiting'].includes(j.status),'Only a manager can cancel work that is not underway.');requireThat(text(v.note),'Give a reason for cancellation.');j.status='Cancelled';audit(j,'Cancelled',{note:text(v.note)});return j;
+  requireThat(manager(u)&&['Assigned','Unassigned','Waiting'].includes(j.status),'Only a manager can cancel work that is not underway.');requireThat(text(v.note),'Give a reason for cancellation.');j.status='Cancelled';delete j.transferReview;audit(j,'Cancelled',{note:text(v.note)});return j;
  }
  if(['job_signoff','job_return'].includes(action)){
   requireThat(reviewer(u),'Supervisor access required.');requireThat(j.status==='Awaiting sign-off','This job is not awaiting sign-off.');requireThat(text(v.note),'Add your review notes.');
   if(action==='job_signoff'){
    if(j.type==='Scheduled inspection')requireThat(s.inspections.some(i=>i.id===j.inspectionId&&i.garage===g&&!i.deletedAt&&i.status==='Completed'),'Complete the linked inspection review first.');
    if(j.faultId)requireThat(s.faults.some(f=>f.id===j.faultId&&f.garage===g&&!f.deletedAt&&f.status==='Closed'),'Review and close the linked fault first.');
-   j.status='Completed';j.completedAt=at;
+   j.status='Completed';j.completedAt=at;delete j.transferReview;
   }else{j.status=j.assigneeId?'Assigned':'Unassigned';j.handover=text(v.note);}
   audit(j,action==='job_signoff'?'Signed off':'Returned for work',{note:text(v.note)});return j;
  }

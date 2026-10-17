@@ -14,6 +14,9 @@ export function garageExport(c){
  if(!manager(c.me)||!c.garage)throw Error('Manager access required.');
  const result={schema:c.state.schema,garage:c.garage,exportedAt:new Date().toISOString()};
  for(const key of ['vehicles','inspections','reports','faults','actions','schedules','modelSchedules','checklistRuns','jobs','shifts','briefings','downtime','instructionAcks','releaseEvents','serviceHistory'])result[key]=(c.state[key]||[]).filter(r=>r.garage===c.garage);
+ result.vehicleTransfers=(c.state.vehicleTransfers||[]).filter(t=>t.from===c.garage||t.to===c.garage);
+ result.vehicleTransferArchive=(c.state.vehicleTransferArchive||[]).filter(t=>t.from===c.garage);
+ if(c.state.attachmentOrigins)result.attachmentOrigins=structuredClone(c.state.attachmentOrigins);
  if(c.state.downtimeRates)result.downtimeRates=structuredClone(c.state.downtimeRates);
  if(c.state.inspectionTemplate)result.inspectionTemplate=c.state.inspectionTemplate;
  return structuredClone(result);

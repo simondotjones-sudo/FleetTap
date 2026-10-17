@@ -1,3 +1,4 @@
+import {managementHistory,setupManagementHistory} from './management-history.js';
 import {backRoute} from './navigation.js';
 import {displayDate} from './display.js';
 import {author} from './roles.js';
@@ -12,7 +13,7 @@ import {fleetModels,vehicleModelType} from './fleet-models.js';
 import {schedulesView,schedulePreview,scheduleValues,setupScheduleUI} from './schedule-ui.js';
 
 const go=(page,label)=>`<button type="button" class="tap-small" data-go="${esc(page)}">${esc(label)}</button>`;
-const hubPaths={records:'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',report:'M12 5v14M5 12h14',template:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',calendar:'M4 5h16v16H4zM4 10h16M8 3v4M16 3v4',bus:'M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2',users:'M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0M5 22v-5a7 7 0 0 1 14 0v5',export:'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5'};
+const hubPaths={records:'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',report:'M12 5v14M5 12h14',template:'M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16',calendar:'M4 5h16v16H4zM4 10h16M8 3v4M16 3v4',bus:'M5 4h14v15H5zM5 11h14M9 4v7M15 4v7M8 19v2M16 19v2',garage:'M3 21V7l9-4 9 4v14M7 21V10h10v11M7 14h10M7 18h10',users:'M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0M5 22v-5a7 7 0 0 1 14 0v5',export:'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5'};
 const tile=(page,title,sub,icon='records')=>`<button type="button" class="tap-tile admin-tile" ${page?`data-go="${esc(page)}"`:'id="export"'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${hubPaths[icon]}"/></svg><strong>${esc(title)}</strong><small>${esc(sub)}</small></button>`;
 const date=v=>esc(displayDate(v));
 const pill=s=>`<span class="pill ${s==='Overdue'?'critical':['Due today','Due soon','Awaiting review'].includes(s)?'attention':'status-neutral'}">${esc(s)}</span>`;
@@ -26,7 +27,7 @@ const sourceLink=(c,t,page=1)=>t.sourceId?`<a class="tap-small document-link" hr
 
 function busEditor(c,id){
  const v=c.state.vehicles.find(v=>v.garage===c.garage&&v.id===id);if(!v)return frame('Bus unavailable','Choose a bus from this garage.','fleet');
- return frame('Edit bus',`<form class="card fleet-form" data-admin-form="vehicle" data-id="${esc(id)}"><label>Bus name<input name="name" value="${esc(v.name||'')}" maxlength="120" placeholder="Optional display name"></label><label>Fleet number<input name="id" value="${esc(v.id)}" required maxlength="40"></label><label>Registration<input name="registration" value="${esc(v.registration)}" maxlength="30"></label><label>Model type<select name="modelType"><option value="">Other model</option>${fleetModels.map(m=>`<option value="${m.id}" ${vehicleModelType(v)===m.id?'selected':''}>${esc(m.id+' · '+m.name)}</option>`).join('')}</select></label><label>Model description<input name="model" value="${esc(v.model)}" required maxlength="120"></label><p class="help">Model schedules follow this model type. Existing individual schedules remain exceptions.</p><p class="help">Existing inspections, faults, actions and schedules stay linked when you change the fleet number.</p><p class="admin-error" role="alert"></p><button>Save bus details</button></form>`,'vehicle/'+encodeURIComponent(id));
+ return frame('Edit bus',`<form class="card fleet-form" data-admin-form="vehicle" data-id="${esc(id)}"><label>Bus name<input name="name" value="${esc(v.name||'')}" maxlength="120" placeholder="Optional display name"></label><label>Fleet number<input name="id" value="${esc(v.id)}" required maxlength="40"></label><label>Registration<input name="registration" value="${esc(v.registration)}" maxlength="30"></label><label>Model type<select name="modelType" ${c.me.role==='organisation_admin'?'':'disabled'}><option value="">Other model</option>${fleetModels.map(m=>`<option value="${m.id}" ${vehicleModelType(v)===m.id?'selected':''}>${esc(m.id+' · '+m.name)}</option>`).join('')}</select>${c.me.role==='organisation_admin'?'':`<input type="hidden" name="modelType" value="${esc(vehicleModelType(v))}">`}</label><label>Model description<input name="model" value="${esc(v.model)}" required maxlength="120"></label><p class="help">Model schedules follow this model type. Existing individual schedules remain exceptions.</p><p class="help">Existing inspections, faults, actions and schedules stay linked when you change the fleet number.</p><p class="admin-error" role="alert"></p><button>Save bus details</button></form>`,'vehicle/'+encodeURIComponent(id));
 }
 function inspectionAdmin(c,id){
  const i=c.state.inspections.find(i=>i.id===id&&i.garage===c.garage&&isPM3(i));if(!i)return frame('Inspection unavailable','Choose an inspection from this garage.','checks');
@@ -47,23 +48,24 @@ function templateAdmin(c,part,id){
 }
 export function adminToolsView(c){
  if(!manager(c.me))return frame('Administrator access required','Ask your administrator.','home');
- if(!c.garage)return frame('Choose a garage','Create or choose a garage to manage its fleet.','admin');
  let parts;try{parts=c.page.split('/').map(decodeURIComponent);}catch{return frame('Page unavailable','Choose a page from the menu.');}
+ if(!c.garage&&!(parts[0]==='manage'&&!parts[1]))return frame('Choose a garage',go('admin/garages','Set up garages'),'manage');
  if(parts[0]==='submitted-reports')return managerRecordsView(c);
  if(parts[0]==='bus-edit')return busEditor(c,parts[1]);
  if(parts[0]==='inspection-admin')return inspectionAdmin(c,parts[1]);
  if(parts[0]==='template-admin')return author(c.me)?templateAdmin(c,parts[1],parts[2]):frame('Organisation Admin access required','Contact your Organisation Admin.');
  if(parts[0]==='schedules')return schedulesView(c,parts[1],parts[2]);
+ if(['jobs','transfers'].includes(parts[1]))return managementHistory(c,parts[1],parts[2]);
  const deleted=c.state.inspections.filter(i=>i.garage===c.garage&&i.deletedAt);
- if(parts[1]==='records')return frame('Records',`<div class="manager-hub-grid">${tile('inspection-records','Bus inspections','Answers and amendments','records')}${tile('records/reports','Reports','Incidents and concerns','report')}${tile('records/faults','Faults','Defects and linked work','bus')}${tile('checklists','Garage checklists','Completed and ongoing checks','records')}</div>`);
- return `<section class="admin-tools manager-hub"><div class="tap-heading"><h1>Manage FleetTap</h1></div><div class="manager-hub-grid">${tile('reviews','Review & sign off','Work ready for a decision','records')}${tile('manage/records','Records','Inspections, reports & faults','report')}${tile('garage-actions','Garage actions','Assign and track corrective work','records')}${tile('schedules','Inspection schedules','Due dates and model rules','calendar')}${author(c.me)?tile('content/sops','SOPs & checklists','Content and templates','template'):tile('required-instructions/team','Team instructions','Required reading and acknowledgement','template')}${tile('admin','People & settings','Users, garages and access','users')}</div><details class="card"><summary>Data backup and archived records</summary><button id="export" type="button" class="secondary">Download data backup — JSON</button>${deleted.length?`<h2>Deleted inspections (${deleted.length})</h2>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}`:''}</details></section>`;
+ if(parts[1]==='records')return frame('Records & history',`<p class="help">Records for this garage. Changes and sign-offs are kept with each record.</p><div class="manager-hub-grid">${tile('inspection-records','Bus inspections','Answers and amendments','records')}${tile('manage/jobs','Job records','Work, handover and sign-off','calendar')}${tile('records/reports','Reports','Incidents and concerns','report')}${tile('records/faults','Faults','Defects and linked work','bus')}${tile('checklists','Garage checklists','Answers and review history','records')}${tile('manage/transfers','Bus transfers','Moves and departure records','bus')}</div><details class="card"><summary>Exports & archived inspections</summary><button id="export" type="button" class="secondary">Download garage data — JSON</button>${deleted.length?`<h2>Deleted inspections (${deleted.length})</h2>${deleted.map(i=>`<p>${go('inspection-admin/'+i.id,i.vehicle+' · '+i.id)} ${date(i.deletedAt)}</p>`).join('')}`:'<p>No deleted inspections.</p>'}</details>`);
+ return `<section class="admin-tools manager-hub"><div class="tap-heading"><h1>Manage FleetTap</h1></div><p class="management-intro">People, garage setup and shared content.</p><div class="manager-hub-grid">${tile('admin','People & access','Users and permissions','users')}${tile('admin/garages','Garages','Garage setup and registration','garage')}${author(c.me)?tile('content/sops','SOPs','Procedures and instructions','template')+tile('content/checklists','Checklists & templates','Questions and inspection content','records'):tile('required-instructions/team','Team instructions','Reading and acknowledgements','template')}${tile('manage/records','Records & history','Records, archives and exports','records')}</div></section>`;
 }
-export function setupAdminTools(h){host=h;setupManagerRecords(h);setupScheduleUI(h,()=>busy);
+export function setupAdminTools(h){host=h;setupManagerRecords(h);setupManagementHistory(h);setupScheduleUI(h,()=>busy);
  document.addEventListener('submit',async e=>{
   const form=e.target;if(!form.dataset.adminForm)return;e.preventDefault();if(busy)return;const c=host.context();if(!manager(c.me))return;
   const v=Object.fromEntries(new FormData(form)),kind=form.dataset.adminForm;const error=form.querySelector('.admin-error');error.textContent='';
   if(kind==='inspection'&&v.operation==='delete'&&!confirm('Delete this inspection? It will remain recoverable in Manage FleetTap. Linked faults and repair actions stay open.'))return;
-  if(kind==='schedule'&&v.scope==='model'&&v.replaceOverrides==='on'){const count=c.state.vehicles.filter(bus=>bus.garage===c.garage&&vehicleModelType(bus)===v.modelType&&(c.state.schedules||[]).some(s=>s.garage===c.garage&&s.vehicle===bus.id&&s.templateId==='pm3')).length;if(count&&!confirm('Replace '+count+' individual inspection schedules with this model rule?'))return;}
+  if(kind==='schedule'&&v.scope==='model'&&v.replaceOverrides==='on'&&!confirm('Replace individual schedules for this model in every garage in the organisation?'))return;
   if(kind==='schedule'&&v.scope==='all'&&!confirm('Apply this schedule to every bus currently in this garage, replacing their individual schedules?'))return;
   busy=true;const button=form.querySelector('button[type="submit"],button:not([type])');if(button)button.disabled=true;
   try{
@@ -84,7 +86,7 @@ export function setupAdminTools(h){host=h;setupManagerRecords(h);setupScheduleUI
  });
  document.addEventListener('click',async e=>{
   const el=e.target.closest('button');if(!el||busy)return;
-  if(el.dataset.scheduleInherit&&manager(host.context().me)){busy=true;el.disabled=true;try{await host.mutation('schedule',{operation:'inherit',vehicle:el.dataset.scheduleInherit});host.go('schedules');host.notify('Model schedule applied.');}catch(error){host.notify(error.message);}finally{busy=false;el.disabled=false;}return;}
+  if(el.dataset.scheduleInherit&&host.context().me.role==='organisation_admin'){busy=true;el.disabled=true;try{await host.mutation('schedule',{operation:'inherit',vehicle:el.dataset.scheduleInherit});host.go('schedules');host.notify('Model schedule applied.');}catch(error){host.notify(error.message);}finally{busy=false;el.disabled=false;}return;}
   if(el.dataset.scheduleInterval){const form=el.closest('form');form.elements.interval.value=el.dataset.scheduleInterval;form.elements.unit.value=el.dataset.scheduleUnit;schedulePreview(form,host.context());form.elements.interval.dispatchEvent(new Event('change',{bubbles:true}));return;}
   if(!el.dataset.templateAction||!manager(host.context().me))return;
   if(el.dataset.templateAction.startsWith('delete')&&!confirm('Remove this from future inspections? Existing inspection records keep their original questions.'))return;
