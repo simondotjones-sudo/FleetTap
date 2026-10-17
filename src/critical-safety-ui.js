@@ -1,7 +1,11 @@
 import {esc} from './api.js';
 import {criticalTask,criticalStep,isCriticalFault,safetyResolved,openCriticalFaults,criticalSummary,checkCriticalFaults} from './critical-safety.js';
 export const criticalQuestionBadge=(task,step)=>((step===undefined?criticalTask(task):criticalStep(task,step))?'<span class="pill critical safety-badge">Critical Safety Fault</span>':'');
-export const criticalQuestionNotice=(task,step)=>criticalQuestionBadge(task,step)?'<p class="safety-notice"><strong>Critical Safety Fault</strong><span>A fault on this question holds the bus until repaired and verified.</span></p>':'';
+const guideIcon=kind=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${kind==='critical'?'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6zM12 8v5M12 16h.01':'M12 3 2 21h20zM12 9v5M12 17h.01'}"/></svg>`;
+const questionGuide=(kind,title,text)=>`<details class="question-guide question-guide-${kind}"><summary aria-label="${title}" title="${title}">${guideIcon(kind)}</summary><div class="question-guide-copy"><strong>${title}</strong><p>${text}</p></div></details>`;
+export const criticalQuestionNotice=(task,step)=>criticalQuestionBadge(task,step)?questionGuide('critical','Critical Safety Fault','A fault on this question holds the bus until repaired and verified.'):'';
+export const questionSafetyNotice=task=>task.section==='Engine and Transmission'?questionGuide('warning','Safety first','High-pressure fuel: never open pipes with the engine running or cranking. Clean engine before servicing.'):'';
+export function questionGuidance(task,step){const content=criticalQuestionNotice(task,step)+questionSafetyNotice(task);return content?`<div class="question-guidance">${content}</div>`:'';}
 export function criticalFaultBadge(state,f){return isCriticalFault(state,f)?`<span class="pill ${safetyResolved(f)?'good':'critical'} safety-badge">Critical Safety Fault${safetyResolved(f)?' · fixed':''}</span>`:'';}
 export function criticalFaultNotice(state,f){
  if(!isCriticalFault(state,f))return '';

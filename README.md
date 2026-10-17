@@ -1,5 +1,13 @@
 # FleetTap
 
+## Faster repair entry and compact safety guidance — 1.17.10.26.47
+
+“I fixed it” now asks for one fault description, a repair choice (Replaced, Repaired, Adjusted or Other) and a “Recheck passed” confirmation. Other keeps a free-text option for work that needs more detail. The selected repair and explicit recheck confirmation are saved with the authenticated mechanic and time, then sent for supervisor review. Optional photos can be added on this screen; required visual photos and fresh measurements still apply. Failed readings cannot be recorded as a successful repair, and critical holds still require verified closure.
+
+Question-level critical safety guidance is a neutral, tappable shield icon. Engine safety guidance is a warning icon that expands to “Safety first” and the existing guidance. These disclosures are keyboard accessible. Actual faults and failed measurements keep their existing visible hold and stop messages.
+
+Validation: all 141 automated tests and the production build pass. Browser checks cover quick and custom repairs, optional and required photos, fresh measurements and before/after readings, retained critical holds, Back/reload draft recovery, keyboard disclosure controls, and layouts at 320/390/1200px.
+
 ## Driver docket capture — 1.17.10.26.44 (prepared for release)
 
 Faults → Scan driver docket accepts one docket with up to three photos, including successive camera shots. Staff review the extracted fault description, category, bus and docket details, then confirm to create a normal open fault with its linked unassigned action. Photos stay attached and accessible through existing authenticated garage access. The AI cannot close faults, approve repairs or release buses. Several defects on one docket are retained in the same description. Separate dockets must be scanned separately.

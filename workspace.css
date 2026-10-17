@@ -43,3 +43,14 @@
 .safety-badge{display:inline-flex;white-space:normal;max-width:100%;margin:4px 0;font-size:.82rem;line-height:1.3}.safety-notice{display:grid;gap:6px;border-left:4px solid #b42318;background:#fff1f0;color:#7a271a;border-radius:12px;padding:16px;margin:12px 0;overflow-wrap:anywhere}.safety-notice p{margin:0}.safety-notice span{font-size:.95rem}.safety-fixed{border-color:#067647;background:#ecfdf3;color:#085d3a}.safety-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}.safety-stats a{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 12px;background:#fff1f0;border:1px solid #fecdca;border-radius:18px;color:#912018;text-align:center;text-decoration:none}.safety-stats strong{font-size:1.8rem}.safety-stats span{font-size:.9rem}.safety-repair{padding-top:12px;border-top:1px solid #fecdca}.critical-question-picker{display:grid;gap:10px;padding:0;list-style:none}.critical-question-picker label{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #ddd;border-radius:12px}.critical-question-picker input{width:20px;flex:0 0 20px;height:20px;margin-top:2px}.critical-question-picker small{display:block;color:#912018;margin-top:5px}
 
 .safety-stats-clear a{background:#f6f7f8;border-color:#e5e7eb;color:#344054}
+.question-guidance{display:flex;justify-content:flex-end;align-items:flex-start;flex-wrap:wrap;gap:10px;width:100%;max-width:880px;margin:0 auto}
+.question-guide{margin:0;min-width:0;align-self:flex-end}
+.question-guidance .question-guide[open]{flex:1 1 340px}
+.question-guide>summary{display:flex;align-items:center;justify-content:center;list-style:none;width:44px;height:44px;padding:10px;box-sizing:border-box;margin-left:auto;border:1px solid #d6d6ce;border-radius:14px;background:#fff;color:#333;cursor:pointer}
+.question-guide>summary::-webkit-details-marker{display:none}
+.question-guide>summary:focus-visible{outline:3px solid #2c8ddd;outline-offset:3px}
+.question-guide>summary svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.question-guide-warning>summary{background:#fff7ce;border-color:#e2ca6d;color:#725300}
+.question-guide[open]>summary{border-color:#777}
+.question-guide-copy{padding:14px 16px;margin-top:8px;border:1px solid #deded6;border-radius:14px;background:white;color:#333;font-size:15px;line-height:1.45;text-align:left;overflow-wrap:anywhere}
+.question-guide-copy p{margin:6px 0 0}.question-guide-warning .question-guide-copy{background:#fff9e5}
