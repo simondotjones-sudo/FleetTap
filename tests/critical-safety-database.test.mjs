@@ -18,7 +18,7 @@ test('critical safety API persists classifications and verification, rejects rol
    const [u]=await sql`INSERT INTO users(name,email,role,organisation_id,garage_id) VALUES(${role},${role+'@safety.invalid'},${role},${org.id},${role==='organisation_admin'?null:garage.id}) RETURNING id`;
    const token=randomToken();await sql`INSERT INTO sessions(token_hash,user_id,credential_version,expires_at) VALUES(${hash(token)},${u.id},1,now()+interval '1 hour')`;cookies[role]='__Host-fleettap_session='+token;
   }
-  const state={schema:1,vehicles:[{id:'SG1',model:'SG',garage:garage.id}],faults:[],actions:[],reports:[],inspections:[],inspectionTemplate:{id:'pm3',title:'Synthetic safety validation',version:1,tasks:[{id:'q',section:'Test',number:'1',page:1,text:'Synthetic safety check',criticalSafety:true,fields:[]}]}};
+  const state={schema:1,vehicles:[{id:'SG1',model:'SG',garage:garage.id}],faults:[],actions:[],reports:[],inspections:[],inspectionTemplate:{id:'pm3',title:'Synthetic safety validation',version:1,tasks:[{id:'q',section:'Test',number:'1',page:1,text:'Synthetic safety check',criticalSafety:true,fields:[]},{id:'visual',section:'Test',number:'2',page:1,text:'Visual safety check',criticalSafety:true,visualDefectPhotoRequired:true,fields:[]}]}};
   await sql`INSERT INTO garage_records(garage_id,data) VALUES(${garage.id},${JSON.stringify(state)}::jsonb),(${foreign.id},${JSON.stringify({...state,vehicles:[]})}::jsonb)`;
   const call=async(role,b,query='')=>{const r=await workspace(new Request(origin+'/.netlify/functions/workspace'+query,{method:b?'POST':'GET',headers:{origin,'content-type':'application/json',cookie:cookies[role]},body:b?JSON.stringify(b):undefined}),ctx);return {status:r.status,data:await r.json()};};
   const read=async(role='organisation_admin')=>(await call(role,null,'?garage='+garage.id)).data;
@@ -36,6 +36,17 @@ test('critical safety API persists classifications and verification, rejects rol
   assert.equal((await write('supervisor','close_record',{notes:'Defer until later'},{kind:'faults',id:f.id})).status,400);
   assert.equal((await write('supervisor','close_record',{notes:'Verified repair',repairEvidence:'Replaced damaged component',recheckEvidence:'Functional test passed',safetyVerified:'yes'},{kind:'faults',id:f.id})).status,200);
   const saved=await read();assert.equal(saved.state.faults[0].safetyResolution.verified,true);assert.match(saved.state.faults[0].safetyResolution.actor,/supervisor/);assert.equal(saved.state.releaseStatuses.SG1.criticalSafetyFaults,0);
+  // Photo requirements and the new repair result are also enforced by the real API.
+  for(const role of ['mechanic','supervisor','garage_manager'])assert.equal((await write(role,'template_edit',{...edit,visualDefectPhotoRequired:false})).status,403);
+  const repair={defect:'Loose fitting found',work:'Replaced damaged fitting',recheck:'Functional test passed',confirmed:true,actor:'Forged supervisor',at:'2000-01-01'};
+  for(const result of ['Defect','Fixed']){
+   const denied=await write('mechanic','answer',{result,notes:'Visual defect',readings:[],repair,failureType:'tolerance',visualDefectPhotoRequired:false},{id,item:'visual'});
+   assert.equal(denied.status,400);assert.match(denied.data.error,/photo is required/);
+  }
+  const fixed=await write('mechanic','answer',{result:'Fixed',notes:'Loose fitting found',readings:[],repair},{id,item:'q'});assert.equal(fixed.status,200);
+  const latest=await read(),reported=latest.state.faults.find(f=>f.id===fixed.data.result.fault);
+  assert.match(reported.repairReported.actor,/mechanic/);assert.notEqual(reported.repairReported.at,'2000-01-01');assert.equal(reported.status,'Open');assert.equal(latest.state.releaseStatuses.SG1.criticalSafetyFaults,1);
+  assert.equal(latest.state.actions.find(a=>a.source===reported.id).status,'Awaiting review');
   assert.equal((await call('mechanic',null,'?garage='+foreign.id)).status,403);
  }finally{const {closeDatabase}=await import('../server/runtime.mjs');await closeDatabase();await client.pool.end();await local.stop();}
 });

@@ -3,7 +3,7 @@ import {pm3} from './pm3.js';
 import {modelTypeForSave} from './fleet-models.js';
 import {templateFor,tasksFor,isPM3} from './templates.js';
 import {validDate} from './scheduling.js';
-import {addRecord} from './model.js';
+import {addRecord,submitAction} from './model.js';
 export const revision='TO-PMS 035 · Revision 8 · demo mapping 1';
 export const sections=[...new Set(pm3.map(i=>i.section))];
 export const readings={
@@ -49,21 +49,48 @@ export function saveAnswer(state,id,garage,taskId,answer){
  const i=inspectionFor(state,id,garage),task=tasksFor(i).find(t=>t.id===taskId);
  if(i.status!=='In progress')throw Error('Submitted inspections are locked.');
  if(!task||task.blocked)throw Error('This item is blocked pending technical review.');
- if(!['OK','Defect','Not completed','Not due'].includes(answer.result))throw Error('Select a result.');
+ if(!['OK','Defect','Fixed','Not completed','Not due'].includes(answer.result))throw Error('Select a result.');
  if(answer.result==='Not due'&&(!task.conditional||task.id==='2-20'))throw Error('This task cannot be marked not due.');
  if(!answer.worker?.trim())throw Error('Enter the craftworker for this item.');
  if(answer.result!=='OK'&&!answer.notes?.trim())throw Error('Add a reason, defect details or maintenance-history reference.');
  const fields=taskReadings(task);
- if(['OK','Defect'].includes(answer.result))fields.forEach((r,n)=>{const val=answer.readings?.[n];if(val==null||String(val).trim()==='')throw Error('Complete the required readings.');if(r.length===4&&!Number.isFinite(Number(val)))throw Error('Enter a valid numeric reading.');if(r[1]==='Yes/No'&&!['Yes','No'].includes(val))throw Error('Choose Yes or No.');if(r[1]==='choice'&&!['Remove clip (leaving one clip), refit pipe','Remove last clip, refit pipe','No clip present, fit new pipe'].includes(val))throw Error('Choose a valid task.');});
+ if(['OK','Defect','Fixed'].includes(answer.result))fields.forEach((r,n)=>{const val=answer.readings?.[n];if(val==null||String(val).trim()==='')throw Error('Complete the required readings.');if(r.length===4&&!Number.isFinite(Number(val)))throw Error('Enter a valid numeric reading.');if(r[1]==='Yes/No'&&!['Yes','No'].includes(val))throw Error('Choose Yes or No.');if(r[1]==='choice'&&!['Remove clip (leaving one clip), refit pipe','Remove last clip, refit pipe','No clip present, fit new pipe'].includes(val))throw Error('Choose a valid task.');});
  const pending=i.rechecks?.[taskId];
  if(outOfRange(task,answer)&&(!pending||pending.resolvedAt)&&JSON.stringify(i.answers[taskId]?.readings)!==JSON.stringify(answer.readings))throw Error('Record the first out-of-tolerance reading and perform a recheck.');
- if(pending&&!pending.resolvedAt&&(!['OK','Defect'].includes(answer.result)||!answer.recheckConfirmed||String(answer.recheckNote||'').trim().length<5))throw Error('Recheck required: take fresh readings and explain the outcome (at least 5 characters).');
- if(outOfRange(task,answer)&&answer.result==='OK')throw Error('Reading outside the source tolerance. Record a defect and details for review.');
+ if(pending&&!pending.resolvedAt&&(!['OK','Defect','Fixed'].includes(answer.result)||!answer.recheckConfirmed||String(answer.recheckNote||'').trim().length<5))throw Error('Recheck required: take fresh readings and explain the outcome (at least 5 characters).');
+ if(outOfRange(task,answer)&&['OK','Fixed'].includes(answer.result))throw Error('Reading outside the source tolerance. Record a defect and details for review.');
  const previous=i.answers[taskId];
- if(previous?.fault&&answer.result!=='Defect')throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
- const saved={...answer,...(previous?.recheck?{recheck:previous.recheck}:{}),worker:answer.worker.trim(),updated:new Date().toISOString(),fault:previous?.fault||null};
- if(answer.result==='Defect'&&saved.fault&&state.faults.some(f=>f.id===saved.fault&&f.garage===garage&&f.status==='Closed'))saved.fault=null;
- if(answer.result==='Defect'&&!saved.fault){const f=addRecord(state,'faults',{garage,vehicle:i.vehicle,title:`${task.section} · item ${task.number}`,description:answer.notes,inspection:i.id,item:task.id,criticalSafety:criticalTask(task),safetySource:{kind:'PM3',templateVersion:i.templateSnapshot?.version||1,question:task.question||task.text,item:task.id}});saved.fault=f.id;}
+ if(previous?.fault&&!['Defect','Fixed'].includes(answer.result))throw Error('A linked defect exists. Keep the defect result; repair and review are tracked separately.');
+ const failed=['Defect','Fixed'].includes(answer.result),fixed=answer.result==='Fixed';
+ const toleranceEvidence=outOfRange(task,answer)||outOfRange(task,{readings:pending?.readings})||outOfRange(task,previous||{});
+ const failureType=failed?(answer.failureType==='tolerance'&&toleranceEvidence?'tolerance':'visual'):null;
+ const existingFault=state.faults.find(f=>f.id===previous?.fault&&f.garage===garage&&f.vehicle===i.vehicle&&f.status!=='Closed');
+ const photos=Array.isArray(answer.photos)?answer.photos:[];
+ if(failed&&task.visualDefectPhotoRequired===true&&failureType==='visual'&&!photos.length&&!existingFault?.photos?.length)throw Error('A photo is required for a visual fault on this question.');
+ let repair=null;
+ if(fixed){
+  const value=answer.repair||{};
+  for(const key of ['defect','work','recheck'])if(typeof value[key]!=='string'||value[key].trim().length<5||value[key].trim().length>4000)throw Error('Record the fault, repair completed and successful recheck (5–4000 characters each).');
+  if(value.confirmed!==true)throw Error('Confirm you completed the repair and successful recheck.');
+  repair={defect:value.defect.trim(),work:value.work.trim(),recheck:value.recheck.trim(),actor:answer.worker.trim(),at:new Date().toISOString(),readings:[...(answer.readings||[])],beforeReadings:[...(pending?.readings||previous?.readings||[])]};
+ }
+ const saved={...answer,...(previous?.recheck?{recheck:previous.recheck}:{}),failureType,repair,worker:answer.worker.trim(),updated:new Date().toISOString(),fault:previous?.fault||null};
+ if(failed&&saved.fault&&!existingFault)saved.fault=null;
+ const newFault=failed&&!saved.fault;
+ if(newFault){const f=addRecord(state,'faults',{garage,vehicle:i.vehicle,title:`${task.section} · item ${task.number}`,description:repair?.defect||answer.notes,inspection:i.id,item:task.id,criticalSafety:criticalTask(task),safetySource:{kind:'PM3',templateVersion:i.templateSnapshot?.version||1,question:task.question||task.text,item:task.id},photos});saved.fault=f.id;}
+ if(saved.fault){
+  const f=state.faults.find(f=>f.id===saved.fault&&f.garage===garage);
+  const combined=[...new Set([...(f.photos||[]),...photos])];if(combined.length>12)throw Error('This fault already has enough photos.');f.photos=combined;
+  if(repair){
+   const previousRepair=f.repairReported;
+   const duplicate=previousRepair&&['defect','work','recheck','actor'].every(k=>previousRepair[k]===repair[k])&&JSON.stringify(previousRepair.readings)===JSON.stringify(repair.readings);
+   let action=newFault?state.actions.find(a=>a.source===f.id&&a.garage===garage&&a.status==='Open'):null;
+   if(!newFault&&!duplicate){action={id:'FT-A-'+crypto.randomUUID().slice(0,8),garage,vehicle:i.vehicle,title:'Review repair · '+f.title,source:f.id,owner:'Unassigned',status:'Open',evidence:'',created:repair.at};state.actions.unshift(action);}
+   repair.actionId=action?.id||previousRepair?.actionId;f.repairReported=structuredClone(repair);
+   (f.audit??=[]).push({action:'Repair reported during check',actor:repair.actor,at:repair.at,notes:'Fault: '+repair.defect+' · Repair: '+repair.work+' · Recheck: '+repair.recheck});
+   if(action)submitAction(state,action.id,'Fault: '+repair.defect+'\nRepair: '+repair.work+'\nRecheck: '+repair.recheck+(repair.readings.length?'\nReadings: '+repair.readings.join(' · '):''),'work',answer.worker);
+  }
+ }
  if(pending&&!pending.resolvedAt){saved.recheck={first:structuredClone(pending),readings:[...answer.readings],note:answer.recheckNote,worker:answer.worker,at:saved.updated};pending.resolvedAt=saved.updated;}
  i.answers[taskId]=saved;i.audit.push({item:taskId,previous:previous||null,value:structuredClone(saved),at:saved.updated});return saved;
 }

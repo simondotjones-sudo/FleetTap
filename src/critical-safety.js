@@ -39,6 +39,6 @@ export function criticalCheckBlocked(state,run){
   const task=tasks?.find(t=>t.id===key),fault=(state.faults||[]).find(f=>f.id===a.fault&&f.garage===run.garage&&f.vehicle===run.vehicle);
   if(fault?.status==='Closed'&&fault.criticalSafety===undefined&&task?.criticalSafety===undefined)return false;
   const critical=tasks?criticalTask(task):run.template?.steps?criticalStep(run.template,key):criticalPM3Ids.has(key);
-  return critical&&['Defect','Fault'].includes(a.result)&&!safetyResolved(fault);
+  return critical&&['Defect','Fixed','Fault'].includes(a.result)&&!safetyResolved(fault);
  });
 }
