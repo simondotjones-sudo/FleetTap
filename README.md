@@ -1,5 +1,19 @@
 # FleetTap
 
+## Driver docket capture — 1.17.10.26.44 (prepared for release)
+
+Faults → Scan driver docket accepts one docket with up to three photos, including successive camera shots. Staff review the extracted fault description, category, bus and docket details, then confirm to create a normal open fault with its linked unassigned action. Photos stay attached and accessible through existing authenticated garage access. The AI cannot close faults, approve repairs or release buses. Several defects on one docket are retained in the same description. Separate dockets must be scanned separately.
+
+The server sends authorised photo bytes to the OpenAI Responses API with a strict extraction schema and `store:false`. It uses `OPENAI_API_KEY` in Netlify Functions and defaults to `gpt-4.1-mini`; `FLEETTAP_DOCKET_MODEL` can override the model. Keep production credentials out of previews; use a separate restricted test key for live preview evaluation. No API key is included in browser assets. Missing keys, timeouts, unreadable photos and incomplete responses offer retry or manual fault entry. This is not offline scanning.
+
+Bus suggestions use an exact, unambiguous match within the selected garage. Conflicting or unclear identifiers require a person to choose the bus. The saved record retains the server extraction, reviewed docket fields, model, timestamps and authenticated reviewer alongside the source photo IDs. Analysis is rate limited and checks access again after the AI response. Confirmed records use the existing atomic garage save and request identity to avoid duplication after a lost response. The scan itself does not create a fault before confirmation.
+
+Docket images are stored as readable JPEG copies up to 2400px / 2 MB each; full-size source files are not preserved byte-for-byte. Successful uploads survive retries and same-tab draft recovery; photos not yet uploaded must be reattached after reload. Docket source details appear on the fault record and are included in existing garage exports. Original extraction snapshots remain unchanged when staff correct the proposed fields.
+
+Activation: configure `OPENAI_API_KEY` with Functions scope for the intended deployment, deploy the approved branch, and validate handwriting on representative Dublin Bus dockets before operational use. Direct driver entry and reporting-system integrations remain future scope.
+
+Validation: 123 automated tests and the production build passed. Docket tests cover garage/user photo access, origin/session enforcement, revocation during analysis, extraction failure and refusal, exact bus matching, photo accumulation/limits, evidence provenance, draft recovery and duplicate-safe save retries. AI responses and photos use synthetic fixtures; live OCR and device/browser checks remain outstanding. The existing roadmap database test now uses the same single-connection local-emulator constraint as the fleet-management test; production database behaviour is unchanged.
+
 ## Content management tidy-up — 1.17.10.26.42
 
 Garage Managers see four equal Manage FleetTap tiles. Organisation Admins have an SOPs & SIs area for creating documents, published documents and reference guides, drafts, and team acknowledgements. Checklist creation, the checklist library and the PM3 inspection template have their own area. Operational checks and reviews remain in their existing work pages. Authoring permissions, draft retention and publication approval are unchanged.

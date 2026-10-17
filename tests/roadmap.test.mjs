@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NetlifyDB} from '@netlify/database-dev';
 import {getDatabase} from '@netlify/database';
+import pg from 'pg';
+// The local emulator has one PostgreSQL session; serialise transactions as in
+// fleet-management-database.test.mjs so a losing request cannot roll back another.
+const NativePool=pg.Pool;pg.Pool=class extends NativePool{constructor(options){super({...options,max:1});}};
 import {hash,randomToken} from '../server/security.mjs';
 import {roadmapSeeds,validateBrief} from '../src/roadmap-data.js';
 import {roadmapView,demoBuses} from '../src/roadmap-ui.js';

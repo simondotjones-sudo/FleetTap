@@ -1,4 +1,5 @@
 import {manageFleet} from '../../server/fleet-management.mjs';
+import {docketRecordSource} from '../../server/docket.mjs';
 import {vehicleModelType,modelTypeForSave} from '../../src/fleet-models.js';
 import {releaseCommand,serviceHistoryCommand,refreshReleaseHolds,withReleaseStatus,visibleRelease} from '../../src/bus-release.js';
 import {acknowledgeControl,requireControls,visibleControls} from '../../src/active-controls.js';
@@ -75,7 +76,7 @@ export default endpoint(async(req)=>{
   case 'template_edit':if(!canAuthor(u))fail('Administrator access required.',403);result=editTemplate(state,v,worker);break;
   case 'schedule':if(u.role!=='organisation_admin')fail('Organisation Admin access required.',403);result=saveSchedule(state,b.garage,v,worker);break;
   case 'vehicle':if(!canManage(u))fail('A manager must add vehicles.',403);if(u.role!=='organisation_admin'&&v.due)fail('Only an Organisation Admin can set an inspection due date.',403);result=saveVehicle(state,b.garage,v);break;
-  case 'record':if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos,requestId:v.requestId||null});break;
+  case 'record':{if(!['reports','faults'].includes(b.kind))fail('Unknown record type.');if(v.docketAnalysisId&&b.kind!=='faults')fail('A driver docket must create a fault.');const source=v.docketAnalysisId?await docketRecordSource(v,photos,b.garage,u):{};result=addRecord(state,b.kind,{garage:b.garage,vehicle:String(v.vehicle||''),title:String(v.title||'').slice(0,160),description:String(v.description||'').slice(0,4000),immediate:String(v.immediate||'').slice(0,2000),type:String(v.type||'').slice(0,80),createdBy:u.id,photos,requestId:v.requestId||null,...source});break;}
   case 'start':result=startInspection(state,v.vehicle,b.garage,worker);break;
   case 'answer':result=saveAnswer(state,b.id,b.garage,b.item,{result:v.result,notes:String(v.notes||'').slice(0,4000),worker,recheckConfirmed:v.recheckConfirmed===true,recheckNote:String(v.recheckNote||'').slice(0,2000),readings:Array.isArray(v.readings)?v.readings.map(x=>String(x).slice(0,300)):[]});break;
   case 'submit':submitInspection(state,b.id,b.garage,String(v.notes||'').slice(0,4000));break;
