@@ -3,7 +3,7 @@ export const statuses=['Available','Idea','In dev'];
 // described usable scope exists; In dev means only part of the brief exists.
 export const deliveryReview={
  'bus-work-pack':{status:'Available',note:'Linked jobs, faults, actions, inspections and release requirements are available in the bus workspace. Parts requests remain further scope.'},
- 'voice-updates':{status:'In dev',note:'Tap to talk and review before saving are available. Structured AI updates and uncertainty checks remain to be built.'},
+ 'voice-updates':{status:'Available',note:'Tap to talk, review and confirmation are available and tested. Structured AI summaries and uncertainty prompts remain future enhancements.'},
  'workshop-knowledge':{status:'In dev',note:'SOPs, model-specific instructions and acknowledgement controls are available. Suggested past repairs and source-linked knowledge answers remain to be built.'},
  'garage-today':{status:'Available',note:'Daily job board, mechanic assignments, team view and day plans are available.'},
  'job-cards':{status:'Available',note:'Assigned jobs, linked faults, work evidence, waiting states and supervisor sign-off are available.'},
